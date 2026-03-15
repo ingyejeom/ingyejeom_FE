@@ -1,139 +1,452 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import api from '../api/api';
 
-// 인수인계서 페이지
+const MODULE_TYPES = {
+    'BASIC_INFO': { icon: '📋', label: '기본 정보' },
+    'ACCOUNT_ACCESS': { icon: '🔐', label: '계정 정보' },
+    'TASK': { icon: '📝', label: '업무/과업' },
+    'ASSET': { icon: '📦', label: '물리적 자산' },
+    'BUDGET': { icon: '💳', label: '예산/비용' },
+    'DOCUMENT_CONTACT': { icon: '📁', label: '문서/연락망' },
+    'RISK': { icon: '⚠️', label: '리스크' },
+    'STAKEHOLDER': { icon: '👥', label: '이해관계자' },
+    'DECISION_HISTORY': { icon: '📜', label: '의사결정 히스토리' },
+    'FREE_NOTE': { icon: '✏️', label: '자유 기록' }
+};
+
 export default function Handover() {
     const navigate = useNavigate();
     const location = useLocation();
-    const isEditMode = location.pathname.includes('edit');
+    const { id } = useParams();
 
-    const [formData, setFormData] = useState({ title: '', role: '', deadline: '', responsibilities: '', links: [''], notes: '' });
-    const [attachedFile, setAttachedFile] = useState(null);
+    const isViewMode = location.pathname.includes('/view');
+    const isEditMode = location.pathname.includes('/edit') || id != null;
+
+    const [title, setTitle] = useState('');
+    const [role, setRole] = useState('');
+    const [modules, setModules] = useState([]);
+
+    const [metaInfo, setMetaInfo] = useState({ groupName: '그룹', workName: '스페이스', userName: '-', createdAt: null });
+    const [userSpaceId, setUserSpaceId] = useState(null);
 
     useEffect(() => {
-        if (isEditMode) {
-            setFormData({ title: '2023 Q4 마케팅 전략 기획 인계', role: 'Marketing Lead', deadline: '2023-11-15', responsibilities: '1. 2024년 1분기 캠페인 기획안 초안 작성 완료\n2. 현재 진행 중인 소셜 미디어 광고 성과 분석', links: ['https://drive.google.com/drive/u/0/folders/...'], notes: '전임자(김철수 대리)가 작성해둔 가이드 문서를 참고하시면 됩니다.' });
-            setAttachedFile({ name: '2023_Guide_v2.pdf' });
+        if (id) {
+            const fetchHandover = async () => {
+                try {
+                    const res = await api.get('/handover', { params: { id } });
+                    const data = res.data;
+
+                    setTitle(data.title || '');
+                    setRole(data.role || '');
+                    setMetaInfo({
+                        groupName: data.groupName,
+                        workName: data.workName,
+                        userName: data.userName,
+                        createdAt: data.createdAt
+                    });
+
+                    if (data.text) {
+                        try {
+                            const parsed = JSON.parse(data.text);
+                            setModules(parsed.modules || []);
+                        } catch (e) { console.error('JSON 파싱 오류', e); }
+                    }
+                } catch (error) {
+                    console.error(error);
+                    alert('문서를 불러오는데 실패했습니다.');
+                }
+            };
+            fetchHandover();
+        } else {
+            const fetchUserSpace = async () => {
+                try {
+                    const res = await api.get('/userSpace/list', { params: { deleted: false } });
+                    if (res.data.length > 0) {
+                        setUserSpaceId(res.data[0].id);
+                        setMetaInfo(prev => ({ ...prev, groupName: res.data[0].groupName, workName: res.data[0].workName }));
+                    }
+                } catch (error) { console.error(error); }
+            };
+            fetchUserSpace();
         }
-    }, [isEditMode]);
+    }, [id]);
 
-    const handleChange = (e) => { const { name, value } = e.target; setFormData(prev => ({ ...prev, [name]: value })); };
-    const handleLinkChange = (index, value) => { const newLinks = [...formData.links]; newLinks[index] = value; setFormData(prev => ({ ...prev, links: newLinks })); };
-    const handleAddLink = () => setFormData(prev => ({ ...prev, links: [...prev.links, ''] }));
-    const handleFileChange = (e) => { if (e.target.files && e.target.files[0]) setAttachedFile(e.target.files[0]); };
-    const handleRemoveFile = () => setAttachedFile(null);
+    const addModule = (type) => {
+        const newModule = {
+            id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
+            type: type,
+            data: {},
+            collapsed: false
+        };
+        setModules([...modules, newModule]);
+    };
 
-    const handleSubmit = () => {
-        if (!formData.title || !formData.role || !formData.deadline || !formData.responsibilities) { alert('필수 요소(*)를 모두 입력해주세요.'); return; }
-        alert(isEditMode ? '인수인계서가 성공적으로 수정되었습니다.' : '인수인계서가 생성되었습니다.'); navigate(-1);
+    const removeModule = (moduleId) => {
+        if (window.confirm('이 모듈을 삭제하시겠습니까?')) {
+            setModules(modules.filter(m => m.id !== moduleId));
+        }
+    };
+
+    const toggleModule = (moduleId) => {
+        setModules(modules.map(m => m.id === moduleId ? { ...m, collapsed: !m.collapsed } : m));
+    };
+
+    const moveModule = (index, direction) => {
+        const newModules = [...modules];
+        if (direction === 'UP' && index > 0) {
+            [newModules[index - 1], newModules[index]] = [newModules[index], newModules[index - 1]];
+        } else if (direction === 'DOWN' && index < newModules.length - 1) {
+            [newModules[index + 1], newModules[index]] = [newModules[index], newModules[index + 1]];
+        }
+        setModules(newModules);
+    };
+
+    const updateModuleData = (moduleId, field, value) => {
+        setModules(modules.map(m => m.id === moduleId ? { ...m, data: { ...m.data, [field]: value } } : m));
+    };
+
+    const handleSave = async () => {
+        if (!title.trim()) { alert('인수인계서 제목을 입력해주세요.'); return; }
+        const payloadText = JSON.stringify({ modules });
+
+        try {
+            if (id) {
+                await api.put('/handover', { id: parseInt(id), title, role, text: payloadText });
+                alert('저장되었습니다.');
+            } else {
+                if (!userSpaceId) { alert('스페이스 정보를 찾을 수 없습니다.'); return; }
+                await api.post('/handover', { title, role, text: payloadText, userSpaceId });
+                alert('생성되었습니다.');
+                navigate(-1);
+            }
+        } catch (error) {
+            console.error(error);
+            alert('저장에 실패했습니다.');
+        }
+    };
+
+    const getModuleTypeInfo = (type) => MODULE_TYPES[type] || { icon: '📄', label: '모듈' };
+
+    // ==========================================
+    // [View Mode] 렌더링 함수
+    // ==========================================
+    const renderViewField = (label, value, isLink = false) => {
+        if (value === undefined || value === null || value === '') return null;
+        return (
+            <div style={styles.viewRow}>
+                <div style={styles.viewLabel}>{label}</div>
+                <div style={styles.viewValue}>
+                    {isLink ? <a href={value} target="_blank" rel="noreferrer" style={{ color: '#007bff' }}>링크 열기</a> : value}
+                </div>
+            </div>
+        );
+    };
+
+    const renderViewModule = (module) => {
+        const { data } = module;
+        switch (module.type) {
+            case 'BASIC_INFO': return <><div style={styles.viewGrid}>{renderViewField('인계자 성명', data.handoverName)}{renderViewField('소속 / 직급', data.affiliation)}</div><div style={styles.viewGrid}>{renderViewField('인계 시작일', data.periodStart)}{renderViewField('인계 종료일', data.periodEnd)}</div><div style={styles.viewGrid}>{renderViewField('비상 연락처', data.emergencyContact)}{renderViewField('인수자 성명', data.receiverName)}</div></>;
+            case 'ACCOUNT_ACCESS': return <>{renderViewField('시스템 / 사이트명', data.systemName)}{renderViewField('접속 URL', data.accessUrl, true)}<div style={styles.viewGrid}>{renderViewField('ID / 계정명', data.accountId)}{renderViewField('권한 등급', data.permissionLevel)}</div>{renderViewField('이용 규칙', data.usageRule)}</>;
+            case 'TASK': return <>{renderViewField('업무명', <strong style={{ fontSize: '18px' }}>{data.taskName}</strong>)}<div style={styles.viewGrid}>{renderViewField('업무 유형', data.taskType)}{renderViewField('중요도', data.importance)}</div><div style={styles.viewGrid}>{renderViewField('수행 주기/시점', data.schedule)}{renderViewField('소요 시간', data.duration)}</div>{renderViewField('선행 업무', data.prerequisiteTask)}{renderViewField('필요 도구/환경', data.requiredTools)}{renderViewField('상세 절차 (Step)', <pre style={styles.preText}>{data.procedure}</pre>)}{renderViewField('산출물 (Output)', data.output)}{renderViewField('검증 기준', data.verificationCriteria)}{renderViewField('트러블슈팅', data.troubleshooting)}<hr style={styles.divider} />{renderViewField('현재 상태', data.status)}<div style={styles.viewGrid}>{renderViewField('최근 수행일', data.lastExecutionDate)}{renderViewField('차기 수행일', data.nextExecutionDate)}</div>{renderViewField('미결 사항', data.pendingIssues)}<hr style={styles.divider} />{renderViewField('관련 문서 링크', data.relatedDocLinks, true)}<div style={styles.viewGrid}>{renderViewField('사용 계정', data.relatedAccount)}{renderViewField('관련 담당자', data.relatedContact)}</div>{renderViewField('참고 레퍼런스', data.referenceLinks, true)}</>;
+            case 'ASSET': return <>{renderViewField('품목명', <strong style={{ fontSize: '18px' }}>{data.itemName}</strong>)}{renderViewField('보관 위치', data.storageLocation)}{renderViewField('수량 / 상태', data.quantityStatus)}{renderViewField('반납 여부', data.isReturned ? '✅ 반납 완료' : '❌ 미반납')}</>;
+            case 'BUDGET': return <>{renderViewField('비용 항목', <strong style={{ fontSize: '18px' }}>{data.costItem}</strong>)}<div style={styles.viewGrid}>{renderViewField('결제일 / 주기', data.paymentSchedule)}{renderViewField('금액', data.amount ? `${Number(data.amount).toLocaleString()}원` : '')}</div>{renderViewField('관련 장부', data.ledgerLink, true)}</>;
+            case 'DOCUMENT_CONTACT': return <>{renderViewField('문서 제목 / 이름', data.docTitle)}<div style={styles.viewGrid}>{renderViewField('유형 / 소속', data.docType)}{renderViewField('보관 형태 / 연락처', data.storageType)}</div>{renderViewField('위치 / 역할', data.docLocation)}</>;
+            case 'RISK': return <>{renderViewField('리스크 제목', <strong style={{ fontSize: '18px' }}>{data.riskTitle}</strong>)}{renderViewField('리스크 설명', data.riskDescription)}<div style={styles.viewGrid}>{renderViewField('영향도', data.impact)}{renderViewField('발생 조건', data.triggerCondition)}</div>{renderViewField('즉각 대응 방법', data.immediateResponse)}{renderViewField('사전 예방 방법', data.prevention)}<hr style={styles.divider} /><div style={styles.viewGrid}>{renderViewField('관련 업무', data.relatedTask)}{renderViewField('참고 문서', data.referenceDoc)}</div>{renderViewField('외부 공유 가능', data.isExternalShareable ? '✅ 예' : '❌ 아니오')}<hr style={styles.divider} /><div style={styles.viewGrid}>{renderViewField('작성자', data.author)}{renderViewField('최종 업데이트일', data.lastUpdatedDate)}</div></>;
+            case 'STAKEHOLDER': return <>{renderViewField('이름 / 직함', <strong style={{ fontSize: '18px' }}>{data.personName}</strong>)}{renderViewField('소속 / 관계', data.organization)}{renderViewField('연락처', data.contact)}{renderViewField('담당 역할', data.role)}</>;
+            case 'DECISION_HISTORY': return <>{renderViewField('결정 제목', <strong style={{ fontSize: '18px' }}>{data.decisionTitle}</strong>)}{renderViewField('결정 내용', data.decisionContent)}{renderViewField('결정 이유 (Why)', data.decisionReason)}<div style={styles.viewGrid}>{renderViewField('결정 시점', data.decisionDate)}{renderViewField('결정자', data.decisionMaker)}</div><hr style={styles.divider} />{renderViewField('대안 검토 여부', data.hasAlternatives === 'YES' ? '✅ 있음' : (data.hasAlternatives === 'NO' ? '❌ 없음' : ''))}{renderViewField('검토된 대안', data.reviewedAlternatives)}{renderViewField('변경 영향', data.changeImpact)}<hr style={styles.divider} /><div style={styles.viewGrid}>{renderViewField('관련 업무', data.relatedTask)}{renderViewField('참고 자료', data.referenceUrl, true)}</div><div style={styles.viewGrid}>{renderViewField('외부 공유 가능', data.isExternalShareable ? '✅ 예' : '❌ 아니오')}{renderViewField('최종 업데이트일', data.lastUpdatedDate)}</div></>;
+            case 'FREE_NOTE': return <>{renderViewField('제목', <strong style={{ fontSize: '18px' }}>{data.noteTitle}</strong>)}<div style={styles.viewGrid}>{renderViewField('분류', data.category)}{renderViewField('중요도', data.importance)}</div>{renderViewField('내용', <pre style={styles.preText}>{data.content}</pre>)}<hr style={styles.divider} />{renderViewField('관련 업무', data.relatedTask)}{renderViewField('첨부/참고 링크', data.attachmentLink, true)}<div style={styles.viewGrid}>{renderViewField('작성자', data.author)}{renderViewField('작성일', data.createdDate)}</div></>;
+            default: return <p>알 수 없는 모듈입니다.</p>;
+        }
+    };
+
+    // ==========================================
+    // [Edit Mode] 렌더링 함수
+    // ==========================================
+    const renderEditModule = (module) => {
+        const { data, id: mId } = module;
+        const handleChange = (field, e) => updateModuleData(mId, field, e.target.type === 'checkbox' ? e.target.checked : e.target.value);
+        const full = { ...styles.formRow, gridColumn: 'span 2' };
+
+        switch (module.type) {
+            case 'BASIC_INFO': return (
+                <div style={styles.formGrid}>
+                    <div style={full}><label style={styles.label}>인계자 성명</label><input style={styles.input} value={data.handoverName || ''} onChange={(e) => handleChange('handoverName', e)} /></div>
+                    <div style={full}><label style={styles.label}>소속 / 직급</label><input style={styles.input} value={data.affiliation || ''} onChange={(e) => handleChange('affiliation', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>인계 시작일</label><input type="date" style={styles.input} value={data.periodStart || ''} onChange={(e) => handleChange('periodStart', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>인계 종료일</label><input type="date" style={styles.input} value={data.periodEnd || ''} onChange={(e) => handleChange('periodEnd', e)} /></div>
+                    <div style={full}><label style={styles.label}>비상 연락처</label><input style={styles.input} value={data.emergencyContact || ''} onChange={(e) => handleChange('emergencyContact', e)} /></div>
+                    <div style={full}><label style={styles.label}>인수자 성명</label><input style={styles.input} value={data.receiverName || ''} onChange={(e) => handleChange('receiverName', e)} /></div>
+                </div>
+            );
+            case 'ACCOUNT_ACCESS': return (
+                <div style={styles.formGrid}>
+                    <div style={full}><label style={styles.label}>시스템 / 사이트명</label><input style={styles.input} value={data.systemName || ''} onChange={(e) => handleChange('systemName', e)} /></div>
+                    <div style={full}><label style={styles.label}>접속 URL</label><input type="url" style={styles.input} value={data.accessUrl || ''} onChange={(e) => handleChange('accessUrl', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>ID / 계정명</label><input style={styles.input} value={data.accountId || ''} onChange={(e) => handleChange('accountId', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>비밀번호</label><input type="password" style={styles.input} value={data.password || ''} onChange={(e) => handleChange('password', e)} /></div>
+                    <div style={full}><label style={styles.label}>권한 등급</label>
+                        <select style={styles.input} value={data.permissionLevel || ''} onChange={(e) => handleChange('permissionLevel', e)}>
+                            <option value="">선택</option><option value="ADMIN">Admin (최고관리자)</option><option value="MANAGER">Manager (매니저)</option><option value="NORMAL">Normal (일반)</option><option value="VIEWER">Viewer (뷰어)</option>
+                        </select>
+                    </div>
+                    <div style={full}><label style={styles.label}>이용 규칙</label><textarea style={styles.textarea} value={data.usageRule || ''} onChange={(e) => handleChange('usageRule', e)} /></div>
+                </div>
+            );
+            case 'TASK': return (
+                <div style={styles.formGrid}>
+                    <div style={full}><label style={styles.label}>업무명</label><input style={styles.input} value={data.taskName || ''} onChange={(e) => handleChange('taskName', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>업무 유형</label>
+                        <select style={styles.input} value={data.taskType || ''} onChange={(e) => handleChange('taskType', e)}><option value="">선택</option><option value="ROUTINE">정기 루틴</option><option value="EVENT">비정기 이벤트</option><option value="PROJECT">일회성 프로젝트</option></select>
+                    </div>
+                    <div style={styles.formRow}><label style={styles.label}>중요도</label>
+                        <select style={styles.input} value={data.importance || ''} onChange={(e) => handleChange('importance', e)}><option value="">선택</option><option value="CRITICAL">🔥 Critical</option><option value="HIGH">High</option><option value="MEDIUM">Medium</option><option value="LOW">Low</option></select>
+                    </div>
+                    <div style={styles.formRow}><label style={styles.label}>수행 주기/시점</label><input style={styles.input} value={data.schedule || ''} onChange={(e) => handleChange('schedule', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>소요 시간</label><input style={styles.input} value={data.duration || ''} onChange={(e) => handleChange('duration', e)} /></div>
+                    <div style={full}><label style={styles.label}>선행 업무</label><input style={styles.input} value={data.prerequisiteTask || ''} onChange={(e) => handleChange('prerequisiteTask', e)} /></div>
+                    <div style={full}><label style={styles.label}>필요 도구/환경</label><input style={styles.input} value={data.requiredTools || ''} onChange={(e) => handleChange('requiredTools', e)} /></div>
+                    <div style={full}><label style={styles.label}>상세 절차 (Step)</label><textarea style={styles.textarea} value={data.procedure || ''} onChange={(e) => handleChange('procedure', e)} /></div>
+                    <div style={full}><label style={styles.label}>산출물 (Output)</label><input style={styles.input} value={data.output || ''} onChange={(e) => handleChange('output', e)} /></div>
+                    <div style={full}><label style={styles.label}>검증 기준</label><textarea style={styles.textarea} value={data.verificationCriteria || ''} onChange={(e) => handleChange('verificationCriteria', e)} /></div>
+                    <div style={full}><label style={styles.label}>트러블슈팅</label><textarea style={styles.textarea} value={data.troubleshooting || ''} onChange={(e) => handleChange('troubleshooting', e)} /></div>
+                    <hr style={styles.divider} />
+                    <div style={full}><label style={styles.label}>현재 상태</label>
+                        <select style={styles.input} value={data.status || ''} onChange={(e) => handleChange('status', e)}><option value="">선택</option><option value="NORMAL">✅ 정상 운영</option><option value="ISSUE">⚠️ 이슈 있음</option><option value="PAUSED">⏸️ 일시 중단</option><option value="HANDOVER">🔄 인계 중</option></select>
+                    </div>
+                    <div style={styles.formRow}><label style={styles.label}>최근 수행일</label><input type="date" style={styles.input} value={data.lastExecutionDate || ''} onChange={(e) => handleChange('lastExecutionDate', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>차기 수행일</label><input type="date" style={styles.input} value={data.nextExecutionDate || ''} onChange={(e) => handleChange('nextExecutionDate', e)} /></div>
+                    <div style={full}><label style={styles.label}>미결 사항</label><textarea style={styles.textarea} value={data.pendingIssues || ''} onChange={(e) => handleChange('pendingIssues', e)} /></div>
+                    <hr style={styles.divider} />
+                    <div style={full}><label style={styles.label}>관련 문서 링크</label><input style={styles.input} value={data.relatedDocLinks || ''} onChange={(e) => handleChange('relatedDocLinks', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>사용 계정</label><input style={styles.input} value={data.relatedAccount || ''} onChange={(e) => handleChange('relatedAccount', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>관련 담당자</label><input style={styles.input} value={data.relatedContact || ''} onChange={(e) => handleChange('relatedContact', e)} /></div>
+                    <div style={full}><label style={styles.label}>참고 레퍼런스</label><input style={styles.input} value={data.referenceLinks || ''} onChange={(e) => handleChange('referenceLinks', e)} /></div>
+                </div>
+            );
+            case 'ASSET': return (
+                <div style={styles.formGrid}>
+                    <div style={full}><label style={styles.label}>품목명</label><input style={styles.input} value={data.itemName || ''} onChange={(e) => handleChange('itemName', e)} /></div>
+                    <div style={full}><label style={styles.label}>보관 위치</label><input style={styles.input} value={data.storageLocation || ''} onChange={(e) => handleChange('storageLocation', e)} /></div>
+                    <div style={full}><label style={styles.label}>수량 / 상태</label><input style={styles.input} value={data.quantityStatus || ''} onChange={(e) => handleChange('quantityStatus', e)} /></div>
+                    {/* 💡 중복 스타일 속성 수정 완료 */}
+                    <div style={{ ...full, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input type="checkbox" checked={data.isReturned || false} onChange={(e) => handleChange('isReturned', e)} />
+                        <label style={{ fontSize: '14px' }}>반납 여부</label>
+                    </div>
+                </div>
+            );
+            case 'BUDGET': return (
+                <div style={styles.formGrid}>
+                    <div style={full}><label style={styles.label}>비용 항목</label><input style={styles.input} value={data.costItem || ''} onChange={(e) => handleChange('costItem', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>결제일 / 주기</label><input style={styles.input} value={data.paymentSchedule || ''} onChange={(e) => handleChange('paymentSchedule', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>금액 (원)</label><input type="number" style={styles.input} value={data.amount || ''} onChange={(e) => handleChange('amount', e)} /></div>
+                    <div style={full}><label style={styles.label}>관련 장부 (링크)</label><input style={styles.input} value={data.ledgerLink || ''} onChange={(e) => handleChange('ledgerLink', e)} /></div>
+                </div>
+            );
+            case 'DOCUMENT_CONTACT': return (
+                <div style={styles.formGrid}>
+                    <div style={full}><label style={styles.label}>문서 제목 / 이름</label><input style={styles.input} value={data.docTitle || ''} onChange={(e) => handleChange('docTitle', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>유형 / 소속</label><input style={styles.input} value={data.docType || ''} onChange={(e) => handleChange('docType', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>보관 형태 / 연락처</label><input style={styles.input} value={data.storageType || ''} onChange={(e) => handleChange('storageType', e)} /></div>
+                    <div style={full}><label style={styles.label}>위치 / 역할</label><input style={styles.input} value={data.docLocation || ''} onChange={(e) => handleChange('docLocation', e)} /></div>
+                </div>
+            );
+            case 'RISK': return (
+                <div style={styles.formGrid}>
+                    <div style={full}><label style={styles.label}>리스크 제목</label><input style={styles.input} value={data.riskTitle || ''} onChange={(e) => handleChange('riskTitle', e)} /></div>
+                    <div style={full}><label style={styles.label}>리스크 설명</label><textarea style={styles.textarea} value={data.riskDescription || ''} onChange={(e) => handleChange('riskDescription', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>영향도</label>
+                        <select style={styles.input} value={data.impact || ''} onChange={(e) => handleChange('impact', e)}><option value="">선택</option><option value="HIGH">🔴 High</option><option value="MEDIUM">🟡 Medium</option><option value="LOW">🟢 Low</option></select>
+                    </div>
+                    <div style={styles.formRow}><label style={styles.label}>발생 조건</label><input style={styles.input} value={data.triggerCondition || ''} onChange={(e) => handleChange('triggerCondition', e)} /></div>
+                    <div style={full}><label style={styles.label}>즉각 대응 방법</label><textarea style={styles.textarea} value={data.immediateResponse || ''} onChange={(e) => handleChange('immediateResponse', e)} /></div>
+                    <div style={full}><label style={styles.label}>사전 예방 방법</label><textarea style={styles.textarea} value={data.prevention || ''} onChange={(e) => handleChange('prevention', e)} /></div>
+                    <hr style={styles.divider} />
+                    <div style={styles.formRow}><label style={styles.label}>관련 업무 (Task)</label><input style={styles.input} value={data.relatedTask || ''} onChange={(e) => handleChange('relatedTask', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>참고 문서</label><input style={styles.input} value={data.referenceDoc || ''} onChange={(e) => handleChange('referenceDoc', e)} /></div>
+                    {/* 💡 중복 스타일 속성 수정 완료 */}
+                    <div style={{ ...full, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input type="checkbox" checked={data.isExternalShareable || false} onChange={(e) => handleChange('isExternalShareable', e)} />
+                        <label style={{ fontSize: '14px' }}>외부 공유 가능 여부</label>
+                    </div>
+                    <hr style={styles.divider} />
+                    <div style={styles.formRow}><label style={styles.label}>작성자</label><input style={styles.input} value={data.author || ''} onChange={(e) => handleChange('author', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>최종 업데이트일</label><input type="date" style={styles.input} value={data.lastUpdatedDate || ''} onChange={(e) => handleChange('lastUpdatedDate', e)} /></div>
+                </div>
+            );
+            case 'STAKEHOLDER': return (
+                <div style={styles.formGrid}>
+                    <div style={full}><label style={styles.label}>이름 / 직함</label><input style={styles.input} value={data.personName || ''} onChange={(e) => handleChange('personName', e)} /></div>
+                    <div style={full}><label style={styles.label}>소속 / 관계</label><input style={styles.input} value={data.organization || ''} onChange={(e) => handleChange('organization', e)} /></div>
+                    <div style={full}><label style={styles.label}>연락처</label><input style={styles.input} value={data.contact || ''} onChange={(e) => handleChange('contact', e)} /></div>
+                    <div style={full}><label style={styles.label}>담당 역할</label><input style={styles.input} value={data.role || ''} onChange={(e) => handleChange('role', e)} /></div>
+                </div>
+            );
+            case 'DECISION_HISTORY': return (
+                <div style={styles.formGrid}>
+                    <div style={full}><label style={styles.label}>결정 제목</label><input style={styles.input} value={data.decisionTitle || ''} onChange={(e) => handleChange('decisionTitle', e)} /></div>
+                    <div style={full}><label style={styles.label}>결정 내용</label><textarea style={styles.textarea} value={data.decisionContent || ''} onChange={(e) => handleChange('decisionContent', e)} /></div>
+                    <div style={full}><label style={styles.label}>결정 이유 (Why)</label><textarea style={styles.textarea} value={data.decisionReason || ''} onChange={(e) => handleChange('decisionReason', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>결정 시점</label><input type="date" style={styles.input} value={data.decisionDate || ''} onChange={(e) => handleChange('decisionDate', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>결정자</label><input style={styles.input} value={data.decisionMaker || ''} onChange={(e) => handleChange('decisionMaker', e)} /></div>
+                    <hr style={styles.divider} />
+                    <div style={full}><label style={styles.label}>대안 검토 여부</label>
+                        <select style={styles.input} value={data.hasAlternatives || ''} onChange={(e) => handleChange('hasAlternatives', e)}><option value="">선택</option><option value="YES">있음</option><option value="NO">없음</option></select>
+                    </div>
+                    <div style={full}><label style={styles.label}>검토된 대안</label><textarea style={styles.textarea} value={data.reviewedAlternatives || ''} onChange={(e) => handleChange('reviewedAlternatives', e)} /></div>
+                    <div style={full}><label style={styles.label}>변경 영향</label><textarea style={styles.textarea} value={data.changeImpact || ''} onChange={(e) => handleChange('changeImpact', e)} /></div>
+                    <hr style={styles.divider} />
+                    <div style={styles.formRow}><label style={styles.label}>관련 업무 (Task)</label><input style={styles.input} value={data.relatedTask || ''} onChange={(e) => handleChange('relatedTask', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>참고 자료</label><input style={styles.input} value={data.referenceUrl || ''} onChange={(e) => handleChange('referenceUrl', e)} /></div>
+                    {/* 💡 중복 스타일 속성 수정 완료 */}
+                    <div style={{ ...full, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input type="checkbox" checked={data.isExternalShareable || false} onChange={(e) => handleChange('isExternalShareable', e)} />
+                        <label style={{ fontSize: '14px' }}>외부 공유 가능 여부</label>
+                    </div>
+                    <div style={full}><label style={styles.label}>최종 업데이트일</label><input type="date" style={styles.input} value={data.lastUpdatedDate || ''} onChange={(e) => handleChange('lastUpdatedDate', e)} /></div>
+                </div>
+            );
+            case 'FREE_NOTE': return (
+                <div style={styles.formGrid}>
+                    <div style={full}><label style={styles.label}>제목</label><input style={styles.input} value={data.noteTitle || ''} onChange={(e) => handleChange('noteTitle', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>분류</label>
+                        <select style={styles.input} value={data.category || ''} onChange={(e) => handleChange('category', e)}><option value="">선택</option><option value="TIP">💡 팁/노하우</option><option value="CAUTION">⚠️ 주의사항</option><option value="REFERENCE">📎 참고사항</option><option value="TODO">☑️ 해야 할 일</option><option value="ETC">📝 기타</option></select>
+                    </div>
+                    <div style={styles.formRow}><label style={styles.label}>중요도</label>
+                        <select style={styles.input} value={data.importance || ''} onChange={(e) => handleChange('importance', e)}><option value="">선택</option><option value="HIGH">🔴 높음</option><option value="MEDIUM">🟡 보통</option><option value="LOW">🟢 낮음</option></select>
+                    </div>
+                    <div style={full}><label style={styles.label}>내용</label><textarea style={styles.textarea} value={data.content || ''} onChange={(e) => handleChange('content', e)} /></div>
+                    <hr style={styles.divider} />
+                    <div style={full}><label style={styles.label}>관련 업무 (Task)</label><input style={styles.input} value={data.relatedTask || ''} onChange={(e) => handleChange('relatedTask', e)} /></div>
+                    <div style={full}><label style={styles.label}>첨부/참고 링크</label><input style={styles.input} value={data.attachmentLink || ''} onChange={(e) => handleChange('attachmentLink', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>작성자</label><input style={styles.input} value={data.author || ''} onChange={(e) => handleChange('author', e)} /></div>
+                    <div style={styles.formRow}><label style={styles.label}>작성일</label><input type="date" style={styles.input} value={data.createdDate || ''} onChange={(e) => handleChange('createdDate', e)} /></div>
+                </div>
+            );
+            default: return <div style={full}><label style={styles.label}>지원되지 않는 모듈입니다.</label></div>;
+        }
     };
 
     return (
         <div style={styles.pageBackground}>
             <header style={styles.header}>
-                <div style={styles.headerLeft}>
-                    <div style={styles.homeIcon} onClick={() => navigate('/')}><span className="material-icons" style={{ color: '#fff', fontSize: '18px' }}>home</span></div>
-                    <div style={styles.headerTitleBox}>
-                        <h1 style={styles.headerTitle}>{isEditMode ? '인수인계서 수정' : '인수인계서 작성'}</h1>
-                        {isEditMode && <p style={styles.headerSubTitle}>Project Alpha Marketing H/O (2023-10-25)</p>}
-                    </div>
-                </div>
-                <div style={styles.headerRight}>
-                    {isEditMode && <span style={styles.autoSaveText}>자동 저장됨</span>}
-                    <div style={styles.profileAvatar} onClick={() => navigate('/profile')}>SD</div>
+                <nav style={styles.breadcrumb}>
+                    <span style={{ cursor: 'pointer', color: '#3B82F6' }} onClick={() => navigate('/')}>🏠 내 스페이스</span>
+                    <span>&gt;</span><span>{metaInfo.groupName}</span><span>&gt;</span><span>{metaInfo.workName}</span>
+                </nav>
+                <div style={styles.headerButtons}>
+                    <button style={styles.btnSecondary} onClick={() => window.print()}>🖨️ PDF/인쇄</button>
+                    {!isViewMode && <button style={styles.btnPrimary} onClick={handleSave}>💾 저장하기</button>}
+                    {isViewMode && <button style={styles.btnPrimary} onClick={() => navigate(`/handover/edit/${id}`)}>✏️ 수정하기</button>}
                 </div>
             </header>
 
-            <main style={styles.mainContainer}>
-                <section style={styles.panel}>
-                    <div style={{ ...styles.panelHeader, backgroundColor: '#2563EB' }}></div>
-                    <div style={styles.panelTitleRow}><h2 style={styles.panelTitle}>필수 요소 (Required)</h2><span style={styles.requiredBadge}>필수 입력</span></div>
-                    <div style={styles.formGroup}>
-                        <label style={styles.label}>인수인계명 (Title) *</label>
-                        <input name="title" style={styles.input} placeholder="예: 2023 Q4 마케팅 전략 기획 인계" value={formData.title} onChange={handleChange} />
-                    </div>
-                    <div style={styles.rowGrid}>
-                        <div style={styles.formGroup}><label style={styles.label}>직책/역할 (Role) *</label><input name="role" style={styles.input} placeholder="예: Marketing Lead" value={formData.role} onChange={handleChange} /></div>
-                        <div style={styles.formGroup}><label style={styles.label}>마감 기한 (Deadline) *</label><div style={styles.dateInputWrapper}><span className="material-icons" style={styles.dateIcon}>calendar_today</span><input type="date" name="deadline" style={styles.dateInput} value={formData.deadline} onChange={handleChange} /></div></div>
-                    </div>
-                    <div style={{ ...styles.formGroup, flex: 1, display: 'flex', flexDirection: 'column', paddingBottom: '32px' }}>
-                        <label style={styles.label}>주요 업무 및 책임 (Key Responsibilities) *</label><p style={styles.helpText}>인계받는 사람이 수행해야 할 핵심 업무를 상세히 기술해주세요.</p>
-                        <textarea name="responsibilities" style={styles.textarea} placeholder="업무 내용을 입력하세요..." value={formData.responsibilities} onChange={handleChange} />
-                    </div>
-                </section>
-
-                <section style={styles.panel}>
-                    <div style={{ ...styles.panelHeader, backgroundColor: '#64748B' }}></div>
-                    <div style={styles.panelTitleRow}><h2 style={styles.panelTitle}>선택 요소 (Optional)</h2><span style={styles.optionalBadge}>추가 정보</span></div>
-                    <div style={styles.formGroup}>
-                        <label style={styles.label}>관련 링크 및 자료 (Resources)</label>
-                        {formData.links.map((link, index) => (
-                            <div key={index} style={{ ...styles.linkInputWrapper, marginBottom: '8px' }}><span className="material-icons" style={styles.linkIcon}>link</span><input style={styles.inputLink} placeholder="https://drive.google.com/..." value={link} onChange={(e) => handleLinkChange(index, e.target.value)} /></div>
+            <div style={styles.mainContainer}>
+                {!isViewMode && (
+                    <aside style={styles.sidebar}>
+                        <div style={styles.sidebarTitle}>📦 모듈 추가 (클릭)</div>
+                        {Object.entries(MODULE_TYPES).map(([type, info]) => (
+                            <div key={type} style={styles.moduleItem} onClick={() => addModule(type)}>
+                                <span>{info.icon}</span>
+                                <span>{info.label}</span>
+                            </div>
                         ))}
-                        <button style={styles.addLinkBtn} onClick={handleAddLink}><span className="material-icons" style={{ fontSize: '16px' }}>add</span> 링크 추가하기</button>
-                    </div>
-                    <div style={styles.formGroup}><label style={styles.label}>추가 메모 (Notes)</label><textarea name="notes" style={{ ...styles.textarea, minHeight: '120px' }} placeholder="전임자가 남기는 추가 팁이나 메모를 작성하세요." value={formData.notes} onChange={handleChange} /></div>
-                    <div style={{ ...styles.formGroup, paddingBottom: '32px' }}>
-                        <label style={styles.label}>파일 첨부 (Attachments)</label>
-                        {!attachedFile ? (
-                            <label style={styles.uploadBox}><input type="file" style={{ display: 'none' }} onChange={handleFileChange} /><span className="material-icons" style={styles.uploadIcon}>cloud_upload</span><p style={styles.uploadText}>파일 업로드</p><p style={styles.uploadHelpText}>PDF, DOCX up to 10MB</p></label>
+                    </aside>
+                )}
+
+                <main style={{ ...styles.content, marginLeft: isViewMode ? 'auto' : '250px', marginRight: isViewMode ? 'auto' : '0' }}>
+                    <div style={styles.documentHeader}>
+                        {isViewMode ? (
+                            <>
+                                <h1 style={styles.documentTitle}>{title || '제목 없음'}</h1>
+                                <p style={styles.documentSubtitle}>{role} 업무 인수인계서</p>
+                                <div style={styles.documentMeta}>
+                                    <span>📅 작성일: {metaInfo.createdAt ? metaInfo.createdAt.split('T')[0] : '-'}</span>
+                                    <span>👤 작성자: {metaInfo.userName}</span>
+                                </div>
+                            </>
                         ) : (
-                            <div style={styles.attachedFileBox}><div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}><div style={styles.pdfIconBox}><span className="material-icons" style={{ color: '#fff', fontSize: '16px' }}>picture_as_pdf</span></div><span style={styles.attachedFileName}>{attachedFile.name}</span></div><button style={styles.removeFileBtn} onClick={handleRemoveFile}>✕</button></div>
+                            <>
+                                <input style={styles.titleInput} placeholder="인수인계서 제목을 입력하세요" value={title} onChange={e => setTitle(e.target.value)} />
+                                <input style={styles.roleInput} placeholder="역할명 (예: 총무, 회장)" value={role} onChange={e => setRole(e.target.value)} />
+                            </>
                         )}
                     </div>
-                </section>
-            </main>
 
-            <footer style={styles.footerBar}>
-                <div style={styles.footerInner}>
-                    <button style={styles.cancelBtn} onClick={() => navigate(-1)}>취소</button><button style={styles.saveBtn} onClick={handleSubmit}><span className="material-icons" style={{ fontSize: '18px', marginRight: '6px' }}>save</span>저장하기</button>
-                </div>
-            </footer>
+                    <div style={styles.modulesContainer}>
+                        {modules.length === 0 && !isViewMode && (
+                            <div style={styles.emptyState}>좌측 팔레트에서 모듈을 클릭하여 추가하세요.</div>
+                        )}
+
+                        {modules.map((module, index) => {
+                            const typeInfo = getModuleTypeInfo(module.type);
+                            return (
+                                <div key={module.id} style={styles.moduleCard}>
+                                    <div style={styles.moduleHeader}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <span style={{ fontSize: '20px' }}>{typeInfo.icon}</span>
+                                            <span style={{ fontWeight: '700' }}>{typeInfo.label}</span>
+                                        </div>
+                                        {!isViewMode && (
+                                            <div style={{ display: 'flex', gap: '5px' }}>
+                                                <button style={styles.iconBtn} onClick={() => moveModule(index, 'UP')}>▲</button>
+                                                <button style={styles.iconBtn} onClick={() => moveModule(index, 'DOWN')}>▼</button>
+                                                <button style={styles.iconBtn} onClick={() => toggleModule(module.id)}>{module.collapsed ? '펼치기' : '접기'}</button>
+                                                <button style={{ ...styles.iconBtn, color: 'red' }} onClick={() => removeModule(module.id)}>✕</button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {!module.collapsed && (
+                                        <div style={styles.moduleBody}>
+                                            {isViewMode ? renderViewModule(module) : renderEditModule(module)}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </main>
+            </div>
         </div>
     );
 }
 
 const styles = {
-    pageBackground: { backgroundColor: '#F3F4F6', minHeight: '100vh', display: 'flex', flexDirection: 'column' },
-    header: { height: '64px', backgroundColor: '#FFFFFF', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 40px', zIndex: 10 },
-    headerLeft: { display: 'flex', alignItems: 'center', gap: '16px' },
-    homeIcon: { width: '32px', height: '32px', backgroundColor: '#64748B', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' },
-    headerTitleBox: { display: 'flex', flexDirection: 'column' },
-    headerTitle: { fontSize: '18px', fontWeight: '700', color: '#111827' },
-    headerSubTitle: { fontSize: '12px', color: '#6B7280', marginTop: '4px' },
-    headerRight: { display: 'flex', alignItems: 'center', gap: '24px' },
-    autoSaveText: { fontSize: '13px', color: '#6B7280' },
-    profileAvatar: { width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#4B5563', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '12px', cursor: 'pointer' },
-    mainContainer: { flex: 1, padding: '32px 40px 100px', display: 'flex', gap: '32px', maxWidth: '1440px', margin: '0 auto', width: '100%' },
-    panel: { flex: 1, backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', position: 'relative' },
-    panelHeader: { height: '6px', width: '100%', position: 'absolute', top: 0, left: 0 },
-    panelTitleRow: { display: 'flex', alignItems: 'center', gap: '12px', padding: '24px 32px 16px', borderBottom: '1px solid #F3F4F6' },
-    panelTitle: { fontSize: '18px', fontWeight: '700', color: '#111827' },
-    requiredBadge: { backgroundColor: '#FEF2F2', color: '#DC2626', border: '1px solid #FEE2E2', fontSize: '11px', fontWeight: '700', padding: '4px 8px', borderRadius: '4px' },
-    optionalBadge: { backgroundColor: '#F3F4F6', color: '#4B5563', border: '1px solid #E5E7EB', fontSize: '11px', fontWeight: '700', padding: '4px 8px', borderRadius: '4px' },
-    formGroup: { padding: '24px 32px 0', display: 'flex', flexDirection: 'column' },
-    rowGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' },
-    label: { fontSize: '14px', color: '#374151', marginBottom: '8px', fontWeight: '600' },
-    helpText: { fontSize: '12px', color: '#6B7280', marginBottom: '12px' },
-    input: { padding: '12px 16px', backgroundColor: '#FFFFFF', border: '1px solid #D1D5DB', borderRadius: '4px', fontSize: '14px', color: '#111827', outline: 'none' },
-    dateInputWrapper: { position: 'relative', display: 'flex', alignItems: 'center' },
-    dateIcon: { position: 'absolute', left: '12px', color: '#9CA3AF', fontSize: '18px' },
-    dateInput: { width: '100%', padding: '12px 16px 12px 40px', backgroundColor: '#FFFFFF', border: '1px solid #D1D5DB', borderRadius: '4px', fontSize: '14px', color: '#111827', outline: 'none' },
-    textarea: { flex: 1, padding: '16px', backgroundColor: '#FFFFFF', border: '1px solid #D1D5DB', borderRadius: '4px', fontSize: '14px', color: '#111827', outline: 'none', resize: 'vertical', minHeight: '200px', lineHeight: '1.6' },
-    linkInputWrapper: { display: 'flex', alignItems: 'center', border: '1px solid #D1D5DB', borderRadius: '4px', overflow: 'hidden' },
-    linkIcon: { padding: '12px', backgroundColor: '#F9FAFB', color: '#9CA3AF', borderRight: '1px solid #D1D5DB' },
-    inputLink: { flex: 1, padding: '12px 16px', border: 'none', fontSize: '14px', color: '#111827', outline: 'none' },
-    addLinkBtn: { alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '4px', color: '#2563EB', fontSize: '13px', background: 'none', border: 'none', cursor: 'pointer', marginTop: '4px', padding: 0 },
-    uploadBox: { border: '1px dashed #D1D5DB', borderRadius: '8px', padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backgroundColor: '#FAFAFA' },
-    uploadIcon: { fontSize: '32px', color: '#9CA3AF', marginBottom: '12px' },
-    uploadText: { fontSize: '14px', color: '#2563EB', marginBottom: '4px' },
-    uploadHelpText: { fontSize: '11px', color: '#9CA3AF' },
-    attachedFileBox: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '4px' },
-    pdfIconBox: { width: '28px', height: '28px', backgroundColor: '#EF4444', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-    attachedFileName: { fontSize: '13px', color: '#374151', fontWeight: '500' },
-    removeFileBtn: { background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', fontSize: '16px' },
-    footerBar: { position: 'fixed', bottom: 0, left: 0, width: '100%', height: '80px', backgroundColor: '#F3F4F6', borderTop: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20 },
-    footerInner: { display: 'flex', justifyContent: 'flex-end', gap: '16px', width: '100%', maxWidth: '1440px', padding: '0 40px' },
-    cancelBtn: { padding: '12px 32px', backgroundColor: '#FFFFFF', border: '1px solid #D1D5DB', borderRadius: '6px', fontSize: '14px', color: '#374151', cursor: 'pointer', fontWeight: '600' },
-    saveBtn: { padding: '12px 32px', backgroundColor: '#2563EB', border: 'none', borderRadius: '6px', fontSize: '14px', color: '#FFFFFF', display: 'flex', alignItems: 'center', cursor: 'pointer', fontWeight: '600' }
+    pageBackground: { backgroundColor: '#F3F4F6', minHeight: '100vh' },
+    header: { background: 'white', padding: '15px 30px', borderBottom: '1px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000 },
+    breadcrumb: { display: 'flex', alignItems: 'center', gap: '8px', color: '#666', fontSize: '14px', fontWeight: '500' },
+    headerButtons: { display: 'flex', gap: '10px' },
+    btnPrimary: { background: '#3B82F6', color: 'white', padding: '8px 20px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' },
+    btnSecondary: { background: '#6c757d', color: 'white', padding: '8px 20px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' },
+    mainContainer: { display: 'flex', marginTop: '60px', minHeight: 'calc(100vh - 60px)' },
+    sidebar: { width: '250px', background: 'white', borderRight: '1px solid #e0e0e0', padding: '20px', position: 'fixed', top: '60px', left: 0, bottom: 0, overflowY: 'auto' },
+    sidebarTitle: { fontSize: '14px', fontWeight: '700', marginBottom: '15px', paddingBottom: '10px', borderBottom: '1px solid #e0e0e0' },
+    moduleItem: { padding: '12px 15px', background: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' },
+    content: { flex: 1, padding: '30px', maxWidth: '900px' },
+    documentHeader: { background: 'white', padding: '40px', borderRadius: '12px', marginBottom: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', textAlign: 'center' },
+    documentTitle: { fontSize: '32px', fontWeight: '700', color: '#333', marginBottom: '10px' },
+    documentSubtitle: { fontSize: '16px', color: '#666', marginBottom: '20px' },
+    documentMeta: { display: 'flex', justifyContent: 'center', gap: '30px', fontSize: '13px', color: '#888' },
+    titleInput: { fontSize: '28px', fontWeight: '700', color: '#333', border: 'none', borderBottom: '2px solid transparent', background: 'transparent', textAlign: 'center', width: '100%', padding: '5px', marginBottom: '8px', outline: 'none' },
+    roleInput: { fontSize: '14px', color: '#666', border: 'none', borderBottom: '1px solid transparent', background: 'transparent', textAlign: 'center', width: '100%', padding: '5px', outline: 'none' },
+    modulesContainer: { minHeight: '200px', paddingBottom: '100px' },
+    emptyState: { border: '2px dashed #ccc', borderRadius: '12px', padding: '40px', textAlign: 'center', color: '#999', marginTop: '15px' },
+    moduleCard: { background: 'white', borderRadius: '12px', marginBottom: '15px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', overflow: 'hidden' },
+    moduleHeader: { padding: '15px 20px', background: '#f8f9fa', borderBottom: '1px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+    iconBtn: { background: 'none', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer', padding: '4px 8px', fontSize: '12px', backgroundColor: '#fff' },
+    moduleBody: { padding: '20px' },
+    formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' },
+    formRow: { display: 'flex', flexDirection: 'column', gap: '5px' },
+    label: { fontSize: '12px', fontWeight: '600', color: '#666' },
+    input: { padding: '10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', outline: 'none', backgroundColor: '#fff' },
+    textarea: { padding: '10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', outline: 'none', minHeight: '80px', resize: 'vertical' },
+    divider: { border: 'none', borderTop: '1px dashed #ccc', margin: '15px 0', gridColumn: 'span 2' },
+
+    viewGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' },
+    viewRow: { marginBottom: '15px', paddingBottom: '10px', borderBottom: '1px solid #f0f0f0' },
+    viewLabel: { fontSize: '12px', fontWeight: '600', color: '#888', marginBottom: '5px' },
+    viewValue: { fontSize: '15px', color: '#333' },
+    preText: { whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0, padding: '10px', background: '#f8f9fa', borderRadius: '6px', fontSize: '14px', lineHeight: '1.6' }
 };
