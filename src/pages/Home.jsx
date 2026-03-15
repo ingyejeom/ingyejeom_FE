@@ -6,30 +6,51 @@ export default function Home() {
     const navigate = useNavigate();
     const [groups, setGroups] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-
-    // 💡 1. 유저 이름을 담을 상태(State) 추가
     const [userName, setUserName] = useState('');
 
     useEffect(() => {
-        // 💡 2. 서버에서 유저 정보 가져오는 함수
-        const fetchUserInfo = async () => {
-            try {
-                const res = await api.get('/user');
-                // 백엔드 데이터에 name(실명)이 있으면 name, 없으면 username(아이디)를 사용
-                setUserName(res.data.username || res.data.name || '사용자');
-            } catch (error) {
-                console.error("유저 정보를 불러오는데 실패했습니다:", error);
-                setUserName('사용자'); // 에러 시 기본값
-            }
+        // 1. 유저 정보(이름) 가져오기 - 서버 에러 우회를 위해 로컬스토리지 사용
+        const fetchUserInfo = () => {
+            const savedId = localStorage.getItem("loginId");
+            setUserName(savedId ? savedId : '사용자');
         };
 
-        // 스페이스 목록 가져오는 함수
+        // 2. 내 그룹/스페이스 목록 가져오기 및 가공
         const fetchGroups = async () => {
             try {
-                // 백엔드의 실제 스페이스 목록 API 주소가 다를 경우 아래 '/spaces'를 수정하세요.
-                // 예: const response = await api.get('/userSpace/list', { params: { deleted: false } });
-                const response = await api.get('/userSpace/list', );
-                setGroups(response.data);
+                const response = await api.get('/userSpace/list', { params: { deleted: false } });
+
+                const adminGroupSet = new Set();
+                const processedGroups = [];
+
+                response.data.forEach(item => {
+                    const groupData = {
+                        id: item.id || Math.random(),
+                        spaceId: item.spaceId,
+                        groupId: item.groupId,
+                        name: item.groupName || '이름 없음',
+                        subName: item.workName || '지정된 업무 없음',
+                        role: item.role,
+                        department: item.role === 'ADMIN' ? '그룹 관리자' : '스페이스 멤버',
+                        status: item.role === 'ADMIN' ? '관리 중' : '참여 중',
+                        statusColor: item.role === 'ADMIN' ? '#3B82F6' : '#22C55E',
+                        iconBg: item.role === 'ADMIN' ? '#EFF6FF' : '#ECFDF5',
+                        icon: item.role === 'ADMIN' ? '👑' : '🏢'
+                    };
+
+                    if (item.role === 'ADMIN') {
+                        // 관리자는 그룹 이름 기준으로 중복 제거
+                        if (!adminGroupSet.has(item.groupName)) {
+                            adminGroupSet.add(item.groupName);
+                            processedGroups.push(groupData);
+                        }
+                    } else {
+                        // 멤버는 참여 중인 모든 스페이스 표시
+                        processedGroups.push(groupData);
+                    }
+                });
+
+                setGroups(processedGroups);
             } catch (error) {
                 console.error("스페이스 목록을 불러오는데 실패했습니다:", error);
                 setGroups([
@@ -40,15 +61,26 @@ export default function Home() {
             }
         };
 
-        // 두 함수 모두 실행
         fetchUserInfo();
         fetchGroups();
     }, []);
 
+    // 역할(Role)에 따른 맞춤형 페이지 이동 로직
+    const handleCardClick = (group) => {
+        if (group.role === 'ADMIN') {
+            navigate(`/group/manage/${group.groupId}`);
+        } else {
+            if (group.spaceId) {
+                navigate(`/space/${group.spaceId}`);
+            } else {
+                alert('이동할 스페이스 ID가 없습니다.');
+            }
+        }
+    };
+
     return (
         <div style={styles.container}>
             <div style={styles.headerSection}>
-                {/* 💡 3. 하드코딩된 'SD' 대신 상태값 {userName} 렌더링 */}
                 <h1 style={styles.title}>환영합니다, {userName}님!</h1>
                 <p style={styles.subtitle}>인수인계 작업을 관리할 그룹을 선택하세요.</p>
             </div>
@@ -58,7 +90,7 @@ export default function Home() {
             ) : (
                 <div style={styles.gridContainer}>
                     {groups.map((group) => (
-                        <div key={group.id} style={styles.card} onClick={() => navigate(`/space/${group.id}`)}>
+                        <div key={group.id} style={styles.card} onClick={() => handleCardClick(group)}>
                             <div style={{ ...styles.iconWrapper, backgroundColor: group.iconBg || '#EFF6FF' }}>
                                 <span style={styles.icon}>{group.icon || '🏢'}</span>
                             </div>
@@ -98,7 +130,6 @@ export default function Home() {
     );
 }
 
-// --- 인라인 스타일 ---
 const styles = {
     container: { maxWidth: '1280px', margin: '0 auto', padding: '40px', display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 64px)' },
     headerSection: { marginBottom: '32px' },
