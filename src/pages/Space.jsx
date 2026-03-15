@@ -1,41 +1,119 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { mockGroups } from '../data/mockData';
+import api from '../api/api';
 
-// 스페이스 메인 페이지 (챗봇 인터페이스)
 export default function Space() {
     const { spaceId } = useParams();
     const navigate = useNavigate();
     const chatEndRef = useRef(null);
 
+    // 상태 관리
+    const [currentSpace, setCurrentSpace] = useState({ name: '로딩 중...', department: '' });
+    const [mySpaces, setMySpaces] = useState([]); // 드롭다운용 스페이스 목록
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [inputText, setInputText] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [loginId, setLoginId] = useState('SD'); // 프로필 아이콘용
 
-    const currentSpace = mockGroups.find(g => g.id === parseInt(spaceId)) || mockGroups[0];
-
+    // 챗봇 메시지 내역
     const [messages, setMessages] = useState([
-        { id: 1, sender: 'bot', text: `안녕하세요, 이 스페이스의 AI 어시스턴트입니다.\n현재 업로드된 12개의 문서와 인수인계 내역을 학습했습니다.\n궁금한 점을 물어보세요.`, time: '오전 11:00' },
-        { id: 2, sender: 'user', text: "Q1 리스크 리포트에서 언급된 주요 이슈가 뭐야? 요약해줘.", time: '오전 11:05' },
-        { id: 3, sender: 'bot', text: "Q1 프로젝트의 주요 리스크 요인은 '공급망 지연'과 '환율 변동'으로 파악됩니다. 관련된 상세 내용은 아래 문서에서 확인하세요.", time: '방금 전', referenceFile: { name: '2024_Q1_Risk_Report.pdf', page: 'pg. 12-15 • 공급망 이슈 섹션' } }
+        { id: 1, sender: 'bot', text: `안녕하세요, 이 스페이스의 AI 어시스턴트입니다.\n현재 업로드된 문서와 인수인계 내역을 바탕으로 답변해 드립니다.\n궁금한 점을 물어보세요.`, time: '시스템' }
     ]);
 
-    useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+    // 스크롤 자동 이동
+    useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
 
+    // 초기 데이터 로딩
+    useEffect(() => {
+        // 1. 프로필 이니셜 가져오기
+        const savedId = localStorage.getItem("loginId");
+        if (savedId) setLoginId(savedId.substring(0, 2).toUpperCase());
+
+        // 2. 현재 스페이스 상세 정보 가져오기
+        const fetchCurrentSpace = async () => {
+            try {
+                const res = await api.get('/space', { params: { id: spaceId } });
+                setCurrentSpace({
+                    name: res.data.workName || '스페이스',
+                    department: res.data.groupName || '그룹'
+                });
+            } catch (error) {
+                console.error("스페이스 정보 로딩 실패:", error);
+                setCurrentSpace({ name: '스페이스 정보를 불러올 수 없습니다.', department: 'Error' });
+            }
+        };
+
+        // 3. 드롭다운 메뉴용 스페이스 목록 가져오기
+        const fetchMySpaces = async () => {
+            try {
+                const res = await api.get('/userSpace/list', { params: { deleted: false } });
+                // 드롭다운에는 내가 참여/관리 중인 목록을 보여줌
+                const spaces = res.data.map(item => ({
+                    id: item.spaceId, // 이동할 spaceId
+                    name: item.workName || item.groupName || '이름 없음'
+                })).filter(space => space.id != null); // spaceId가 있는 것만 필터링
+
+                // 중복 제거
+                const uniqueSpaces = Array.from(new Set(spaces.map(s => s.id))).map(id => spaces.find(s => s.id === id));
+                setMySpaces(uniqueSpaces);
+            } catch (error) {
+                console.error("스페이스 목록 로딩 실패:", error);
+            }
+        };
+
+        fetchCurrentSpace();
+        fetchMySpaces();
+    }, [spaceId]);
+
+    // 챗봇 메시지 전송 핸들러
     const handleSendMessage = async () => {
         if (!inputText.trim()) return;
-        const newUserMsg = { id: Date.now(), sender: 'user', text: inputText, time: '방금 전' };
+
+        const userText = inputText;
+        const currentTime = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+
+        // 유저 메시지 화면에 먼저 추가
+        const newUserMsg = { id: Date.now(), sender: 'user', text: userText, time: currentTime };
         setMessages(prev => [...prev, newUserMsg]);
         setInputText('');
         setIsLoading(true);
 
         try {
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            setMessages(prev => [...prev, { id: Date.now() + 1, sender: 'bot', text: `'${newUserMsg.text}'에 대한 인수인계 문서 검색 결과입니다. 추가로 궁금한 점이 있으신가요?`, time: '방금 전' }]);
-        } catch (error) { console.error(error); } finally { setIsLoading(false); }
+            const response = await api.post('/chatbot', {
+                spaceId: parseInt(spaceId),
+                question: userText 
+            });
+
+            const botMsg = {
+                id: Date.now() + 1,
+                sender: 'bot',
+                text: response.data.answer || response.data.message || response.data || '답변이 완료되었습니다.',
+                time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+                // referenceFile: response.data.referenceFile // 백엔드에서 출처를 준다면 연결 가능
+            };
+            setMessages(prev => [...prev, botMsg]);
+
+        } catch (error) {
+            console.error('챗봇 응답 에러:', error);
+
+            // 서버 에러 시 표시할 임시 안내 메시지
+            const errorMsg = {
+                id: Date.now() + 1,
+                sender: 'bot',
+                text: `⚠️ 챗봇 서버와 연결할 수 없습니다.\n[전송한 질문: ${userText}]`,
+                time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+            };
+            setMessages(prev => [...prev, errorMsg]);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    const handleKeyDown = (e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleSendMessage(); };
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleSendMessage();
+    };
 
     return (
         <div style={styles.container}>
@@ -54,9 +132,9 @@ export default function Space() {
                         </div>
                         {isDropdownOpen && (
                             <div style={styles.dropdownMenu}>
-                                {mockGroups.map(group => (
-                                    <div key={group.id} style={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); navigate(`/space/${group.id}`); }}>
-                                        {group.name}
+                                {mySpaces.map(space => (
+                                    <div key={space.id} style={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); navigate(`/space/${space.id}`); }}>
+                                        {space.name}
                                     </div>
                                 ))}
                             </div>
@@ -69,7 +147,7 @@ export default function Space() {
                         <span className="material-icons" style={{ fontSize: '18px' }}>folder</span>자료실
                     </button>
                     <div style={styles.profileIcon} onClick={() => navigate('/profile')}>
-                        <span style={{ color: '#fff', fontSize: '12px', fontWeight: '700' }}>SD</span>
+                        <span style={{ color: '#fff', fontSize: '12px', fontWeight: '700' }}>{loginId}</span>
                         <div style={styles.statusDot}></div>
                     </div>
                 </div>
@@ -120,6 +198,7 @@ export default function Space() {
     );
 }
 
+// --- 인라인 스타일 (기존과 동일하게 유지) ---
 const styles = {
     container: { display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#F8FAFC' },
     header: { height: '64px', backgroundColor: 'rgba(255, 255, 255, 0.95)', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', zIndex: 10 },
@@ -129,7 +208,7 @@ const styles = {
     dropdownToggle: { display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '4px 8px', borderRadius: '8px' },
     dropdownLabel: { fontSize: '10px', color: '#64748B' },
     dropdownTitle: { fontSize: '14px', fontWeight: '700', color: '#1E293B' },
-    dropdownMenu: { position: 'absolute', top: '100%', left: 0, backgroundColor: '#fff', border: '1px solid #E2E8F0', borderRadius: '8px', width: '200px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', marginTop: '8px', zIndex: 20 },
+    dropdownMenu: { position: 'absolute', top: '100%', left: 0, backgroundColor: '#fff', border: '1px solid #E2E8F0', borderRadius: '8px', width: '200px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', marginTop: '8px', zIndex: 20, maxHeight: '300px', overflowY: 'auto' },
     dropdownItem: { padding: '12px 16px', fontSize: '14px', cursor: 'pointer', borderBottom: '1px solid #F1F5F9' },
     headerRight: { display: 'flex', alignItems: 'center', gap: '16px' },
     archiveBtn: { display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', backgroundColor: '#fff', border: '1px solid #E0E7FF', borderRadius: '8px', color: '#4F46E5', fontWeight: '600', fontSize: '13px', cursor: 'pointer' },
