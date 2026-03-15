@@ -1,7 +1,20 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Header() {
     const navigate = useNavigate();
+
+    // 프로필 이니셜 상태 추가 (기본값 'SD')
+    const [loginId, setLoginId] = useState('SD');
+
+    // 컴포넌트가 렌더링될 때 로컬스토리지에서 로그인한 아이디를 가져옴
+    useEffect(() => {
+        const savedId = localStorage.getItem("loginId");
+        if (savedId) {
+            // 아이디의 앞 2글자를 대문자로 잘라서 세팅
+            setLoginId(savedId.substring(0, 2).toUpperCase());
+        }
+    }, []);
 
     return (
         <header style={styles.header}>
@@ -25,9 +38,8 @@ export default function Header() {
                 <button style={styles.createBtn} onClick={() => navigate('/group/create')}>
                     + 그룹 생성
                 </button>
-                {/* 일단 SD 삼동으로 */}
                 <div style={styles.profileAvatar} onClick={() => navigate('/profile')}>
-                    SD
+                    {loginId}
                 </div>
             </div>
         </header>
