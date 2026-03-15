@@ -1,32 +1,115 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { mockGroups } from '../data/mockData';
+import api from '../api/api';
 
-// 자료실
 export default function Archive() {
     const { spaceId } = useParams();
     const navigate = useNavigate();
-    const currentSpace = mockGroups.find(g => g.id === parseInt(spaceId)) || mockGroups[0];
 
+    // 상태 관리
+    const [currentSpace, setCurrentSpace] = useState({ name: '로딩 중...', department: '' });
+    const [mySpaces, setMySpaces] = useState([]);
+    const [loginId, setLoginId] = useState('SD');
+
+    // 모달 상태
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+
+    // 데이터 상태
     const [selectedFile, setSelectedFile] = useState(null);
-
     const [latestHandover, setLatestHandover] = useState(null);
-    const [folders, setFolders] = useState([]);
     const [historyList, setHistoryList] = useState([]);
+    const [files, setFiles] = useState([]); // 폴더 대신 실제 파일 목록으로 변경
 
+    // 1. 초기 데이터 로드
     useEffect(() => {
-        setLatestHandover({ id: 1, title: '인수인계서 (2023-10-25)', description: '2023년도 3분기 마케팅팀 업무 및 프로젝트 현황 정리 문서입니다.', author: '김민수', views: 12, date: '2023-10-25' });
-        setFolders([{ id: 1, name: '업무 매뉴얼', count: 3 }, { id: 2, name: '프로젝트 히스토리', count: 12 }, { id: 3, name: '계정 및 비밀번호', count: 1 }]);
-        setHistoryList([{ id: 2, title: '인수인계서 (2023-09-01)', author: '박지연', date: '2023-09-01' }, { id: 3, title: '인수인계서 (2023-06-15)', author: '이태용', date: '2023-06-15' }]);
+        const savedId = localStorage.getItem("loginId");
+        if (savedId) setLoginId(savedId.substring(0, 2).toUpperCase());
+
+        const fetchSpaceInfo = async () => {
+            try {
+                const res = await api.get('/space', { params: { id: spaceId } });
+                setCurrentSpace({
+                    name: res.data.workName || '스페이스',
+                    department: res.data.groupName || '그룹'
+                });
+            } catch (error) { console.error(error); }
+        };
+
+        const fetchMySpaces = async () => {
+            try {
+                const res = await api.get('/userSpace/list', { params: { deleted: false } });
+                const spaces = res.data.map(item => ({ id: item.spaceId, name: item.workName || item.groupName })).filter(s => s.id != null);
+                const uniqueSpaces = Array.from(new Set(spaces.map(s => s.id))).map(id => spaces.find(s => s.id === id));
+                setMySpaces(uniqueSpaces);
+            } catch (error) { console.error(error); }
+        };
+
+        fetchSpaceInfo();
+        fetchMySpaces();
+        loadArchiveData(); // 인수인계서 및 파일 목록 로드
     }, [spaceId]);
 
-    const handleFileUpload = () => {
-        if (!selectedFile) { alert('업로드할 파일을 선택해주세요.'); return; }
-        alert('자료가 성공적으로 업로드되었습니다!');
-        setIsUploadModalOpen(false); setSelectedFile(null);
+    // 2. 인수인계서 및 첨부파일 목록 불러오기
+    const loadArchiveData = async () => {
+        try {
+            // (1) 인수인계서 목록 조회
+            const handoverRes = await api.get(`/handover/space/${spaceId}`);
+            const handovers = handoverRes.data || [];
+
+            if (handovers.length > 0) {
+                // ID 기준 내림차순(최신순) 정렬
+                handovers.sort((a, b) => b.id - a.id);
+                setLatestHandover(handovers[0]); // 가장 최신 데이터
+                setHistoryList(handovers.slice(1)); // 나머지는 이전 기록으로
+            } else {
+                setLatestHandover(null);
+                setHistoryList([]);
+            }
+
+            // (2) 파일 목록 조회
+            const fileRes = await api.get('/file/list', { params: { spaceId: spaceId } });
+            setFiles(fileRes.data || []);
+
+        } catch (error) {
+            console.error('자료실 데이터 로딩 에러:', error);
+        }
+    };
+
+    // 3. 실제 파일 업로드 처리 (Multipart Form Data)
+    const handleFileUpload = async () => {
+        if (!selectedFile) {
+            alert('업로드할 파일을 선택해주세요.');
+            return;
+        }
+
+        // 파일 전송을 위한 FormData 객체 생성
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('spaceId', spaceId.toString());
+
+        try {
+            // 파일 업로드는 Content-Type을 'multipart/form-data'로 지정해야 함.
+            await api.post('/file', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            alert('자료가 성공적으로 업로드되었습니다!');
+            setIsUploadModalOpen(false);
+            setSelectedFile(null);
+            loadArchiveData(); // 업로드 후 파일 목록 새로고침
+
+        } catch (error) {
+            console.error('파일 업로드 에러:', error);
+            alert('파일 업로드에 실패했습니다.');
+        }
+    };
+
+    // 날짜 포맷팅 함수 (2024-01-01T12:00:00 -> 2024.01.01)
+    const formatDate = (dateString) => {
+        if (!dateString) return '';
+        return dateString.split('T')[0].replace(/-/g, '.');
     };
 
     return (
@@ -43,76 +126,106 @@ export default function Archive() {
                         </div>
                         {isDropdownOpen && (
                             <div style={styles.dropdownMenu}>
-                                {mockGroups.map(group => <div key={group.id} style={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); navigate(`/space/${group.id}/archive`); }}>{group.name}</div>)}
+                                {mySpaces.map(space => <div key={space.id} style={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); navigate(`/space/${space.id}/archive`); }}>{space.name}</div>)}
                             </div>
                         )}
                     </div>
                 </div>
                 <h1 style={styles.headerCenterTitle}>자료실</h1>
                 <div style={styles.headerRight}>
-                    <div style={styles.profileAvatar} onClick={() => navigate('/profile')}>SD</div>
+                    <div style={styles.profileAvatar} onClick={() => navigate('/profile')}>{loginId}</div>
                 </div>
             </header>
 
             <main style={styles.mainContainer}>
                 <div style={styles.titleSection}>
                     <div><h2 style={styles.pageTitle}>자료실 관리</h2><p style={styles.pageSubTitle}>팀 내 중요 문서와 인수인계 자료를 관리하는 공간입니다.</p></div>
-                    <button style={styles.addBtn} onClick={() => setIsUploadModalOpen(true)}>+ 자료 추가</button>
+                    <button style={styles.addBtn} onClick={() => setIsUploadModalOpen(true)}>+ 파일 첨부</button>
                 </div>
 
+                {/* 최신 인수인계서 섹션 */}
                 <div style={styles.section}>
-                    <div style={styles.sectionHeader}><h3 style={styles.sectionTitle}>최신 인수인계서</h3><span style={styles.lastUpdated}>Last updated: {latestHandover?.date}</span></div>
-                    {latestHandover && (
+                    <div style={styles.sectionHeader}>
+                        <h3 style={styles.sectionTitle}>최신 인수인계서</h3>
+                        {latestHandover && <span style={styles.lastUpdated}>Last updated: {formatDate(latestHandover.createdAt || latestHandover.modifiedAt)}</span>}
+                    </div>
+
+                    {latestHandover ? (
                         <div style={styles.handoverCard}>
-                            <div style={styles.handoverContent} onClick={() => navigate(`/handover/edit`)}>
+                            <div style={styles.handoverContent} onClick={() => navigate(`/handover/edit/${latestHandover.id}`)}>
                                 <div style={styles.handoverTitleRow}><h4 style={styles.handoverTitle}>{latestHandover.title}</h4><span style={styles.badge}>LATEST</span></div>
-                                <p style={styles.handoverDesc}>{latestHandover.description}</p>
-                                <div style={styles.handoverMeta}><span>작성자: {latestHandover.author}</span><span style={styles.dot}>•</span><span>조회수: {latestHandover.views}</span></div>
+                                <p style={styles.handoverDesc}>{latestHandover.role}</p>
+                                <div style={styles.handoverMeta}>
+                                    <span>작성자: {latestHandover.userName}</span><span style={styles.dot}>•</span>
+                                    <span>{formatDate(latestHandover.createdAt)}</span>
+                                </div>
                             </div>
                             <div style={styles.handoverActions}>
-                                <button style={styles.textBtn} onClick={() => setIsHistoryModalOpen(true)}>+ 이전 인수인계서 확인하기</button>
-                                <button style={styles.textBtn} onClick={() => navigate('/handover/create')}>+ 새 인수인계서 생성하기</button>
+                                {historyList.length > 0 && (
+                                    <button style={styles.textBtn} onClick={() => setIsHistoryModalOpen(true)}>+ 이전 인수인계서 ({historyList.length})</button>
+                                )}
+                                <button style={styles.textBtn} onClick={() => navigate('/handover/create')}>+ 새 인수인계서 작성</button>
                             </div>
+                        </div>
+                    ) : (
+                        <div style={styles.emptyCard}>
+                            <p style={styles.emptyText}>아직 작성된 인수인계서가 없습니다.</p>
+                            <button style={styles.textBtn} onClick={() => navigate('/handover/create')}>+ 첫 인수인계서 작성하기</button>
                         </div>
                     )}
                 </div>
 
+                {/* 첨부 파일(자료) 섹션 */}
                 <div style={styles.section}>
                     <div style={styles.sectionHeader}>
-                        <h3 style={styles.sectionTitle}>첨부 자료 폴더</h3>
-                        <div style={styles.sortIcons}><span className="material-icons" style={{ color: '#1E293B', fontSize: '20px' }}>grid_view</span><span className="material-icons" style={{ color: '#94A3B8', fontSize: '20px' }}>view_list</span></div>
+                        <h3 style={styles.sectionTitle}>첨부 파일 목록</h3>
                     </div>
-                    <div style={styles.folderGrid}>
-                        {folders.map(folder => (
-                            <div key={folder.id} style={styles.folderCard} onClick={() => alert(`${folder.name} 폴더를 엽니다.`)}>
-                                <span className="material-icons" style={styles.folderIcon}>folder</span>
-                                <div><h4 style={styles.folderName}>{folder.name}</h4><p style={styles.folderCount}>{folder.count} files</p></div>
-                            </div>
-                        ))}
-                    </div>
+
+                    {files.length > 0 ? (
+                        <div style={styles.folderGrid}>
+                            {files.map(file => (
+                                <div key={file.id} style={styles.folderCard} onClick={() => alert(`${file.originalFileName} 파일 다운로드(API 구현 필요)`)}>
+                                    <span className="material-icons" style={styles.fileIcon}>description</span>
+                                    <div style={{ overflow: 'hidden' }}>
+                                        <h4 style={styles.folderName} title={file.originalFileName}>{file.originalFileName}</h4>
+                                        <p style={styles.folderCount}>{file.uploaderName} • {(file.size / 1024).toFixed(1)} KB</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div style={styles.emptyCard}>
+                            <p style={styles.emptyText}>업로드된 파일이 없습니다.</p>
+                        </div>
+                    )}
                 </div>
             </main>
 
             <footer style={styles.footer}>© 2024 INGYEJEOM. All rights reserved.</footer>
 
+            {/* 파일 업로드 모달 */}
             {isUploadModalOpen && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
-                        <h3 style={styles.modalTitle}>자료 추가</h3><p style={styles.modalSub}>업로드할 파일을 선택해주세요.</p>
+                        <h3 style={styles.modalTitle}>자료 첨부</h3><p style={styles.modalSub}>업로드할 파일을 선택해주세요. (PDF, 이미지 등)</p>
                         <input type="file" style={styles.fileInput} onChange={(e) => setSelectedFile(e.target.files[0])} />
-                        <div style={styles.modalActions}><button style={styles.cancelBtn} onClick={() => setIsUploadModalOpen(false)}>취소</button><button style={styles.confirmBtn} onClick={handleFileUpload}>업로드</button></div>
+                        <div style={styles.modalActions}>
+                            <button style={styles.cancelBtn} onClick={() => { setIsUploadModalOpen(false); setSelectedFile(null); }}>취소</button>
+                            <button style={styles.confirmBtn} onClick={handleFileUpload}>업로드</button>
+                        </div>
                     </div>
                 </div>
             )}
 
+            {/* 이전 인수인계서 목록 모달 */}
             {isHistoryModalOpen && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContentWide}>
                         <div style={styles.modalHeader}><h3 style={styles.modalTitle}>이전 인수인계서 기록</h3><button style={styles.closeBtn} onClick={() => setIsHistoryModalOpen(false)}>✕</button></div>
                         <div style={styles.historyList}>
                             {historyList.map(item => (
-                                <div key={item.id} style={styles.historyItem} onClick={() => alert(`${item.title} 조회 페이지로 이동합니다.`)}>
-                                    <div><h4 style={styles.historyTitle}>{item.title}</h4><p style={styles.historyMeta}>작성자: {item.author} | 작성일: {item.date}</p></div>
+                                <div key={item.id} style={styles.historyItem} onClick={() => navigate(`/handover/view/${item.id}`)}>
+                                    <div><h4 style={styles.historyTitle}>{item.title}</h4><p style={styles.historyMeta}>작성자: {item.userName} | 작성일: {formatDate(item.createdAt)}</p></div>
                                     <span className="material-icons" style={{ color: '#94A3B8' }}>chevron_right</span>
                                 </div>
                             ))}
@@ -157,11 +270,12 @@ const styles = {
     dot: { fontSize: '10px' },
     handoverActions: { display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'flex-end', borderLeft: '1px solid #E2E8F0', paddingLeft: '24px' },
     textBtn: { background: 'none', border: 'none', color: '#4F46E5', fontSize: '13px', fontWeight: '600', cursor: 'pointer' },
-    sortIcons: { display: 'flex', gap: '8px', backgroundColor: '#F1F5F9', padding: '4px', borderRadius: '8px' },
+    emptyCard: { backgroundColor: '#F8FAFC', border: '1px dashed #CBD5E1', borderRadius: '12px', padding: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' },
+    emptyText: { fontSize: '14px', color: '#64748B' },
     folderGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' },
     folderCard: { backgroundColor: '#fff', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '20px', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer' },
-    folderIcon: { color: '#FBBF24', fontSize: '40px' },
-    folderName: { fontSize: '15px', fontWeight: '700', color: '#1E293B', marginBottom: '4px' },
+    fileIcon: { color: '#6366F1', fontSize: '40px' },
+    folderName: { fontSize: '15px', fontWeight: '700', color: '#1E293B', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
     folderCount: { fontSize: '12px', color: '#64748B' },
     footer: { textAlign: 'center', padding: '24px', fontSize: '12px', color: '#94A3B8', borderTop: '1px solid #E2E8F0', backgroundColor: '#fff' },
     modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
