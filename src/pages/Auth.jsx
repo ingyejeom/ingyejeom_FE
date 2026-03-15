@@ -10,10 +10,10 @@ export default function Auth() {
         username: '', password: '', name: '', email: '',
     });
 
-    // 페이지 진입 시 기존 토큰 제거 (login.html 로직 동일)
     useEffect(() => {
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
+        localStorage.removeItem("loginId"); 
     }, []);
 
     const handleChange = (e) => {
@@ -25,24 +25,20 @@ export default function Auth() {
         e.preventDefault();
 
         if (isLoginMode) {
-            // 1. 로그인 (토큰 2단계 발급)
             if (!formData.username || !formData.password) {
                 alert('아이디와 비밀번호를 모두 입력해주세요.'); return;
             }
 
             try {
-                // [Step 1] 로그인 요청 -> RefreshToken 발급
                 const loginRes = await api.post('/login', {
                     username: formData.username,
                     password: formData.password
                 });
 
-                // axios는 헤더 키를 소문자로 반환함
                 const refreshToken = loginRes.headers['refreshtoken'] || loginRes.headers['refresh-token'];
                 if (!refreshToken) throw new Error("리프레시 토큰이 없습니다.");
                 localStorage.setItem("refreshToken", refreshToken);
 
-                // [Step 2] RefreshToken으로 AccessToken(Authorization) 발급 요청
                 const authRes = await api.post('/auth', {}, {
                     headers: { 'RefreshToken': refreshToken }
                 });
@@ -50,8 +46,10 @@ export default function Auth() {
                 const accessToken = authRes.headers['authorization'] || authRes.headers['Authorization'];
                 if (accessToken) {
                     localStorage.setItem("accessToken", accessToken);
+                    localStorage.setItem("loginId", formData.username);
+
                     alert('로그인에 성공했습니다!');
-                    navigate('/'); // 스페이스 목록(홈)으로 이동
+                    navigate('/');
                 }
             } catch (error) {
                 console.error('로그인 에러:', error);
@@ -59,7 +57,6 @@ export default function Auth() {
             }
 
         } else {
-            // 2. 회원가입
             if (!formData.username || !formData.password || !formData.name || !formData.email) {
                 alert('모든 항목을 입력해주세요.'); return;
             }
