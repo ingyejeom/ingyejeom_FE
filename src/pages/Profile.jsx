@@ -5,34 +5,42 @@ import api from '../api/api';
 export default function Profile() {
     const navigate = useNavigate();
 
-    // 사용자 정보 상태
     const [userInfo, setUserInfo] = useState({ name: '-', email: '-', username: '' });
-    // 그룹 상태
     const [myGroups, setMyGroups] = useState([]);
-
-    // 인계하기 모달 상태
     const [isHandoverModalOpen, setIsHandoverModalOpen] = useState(false);
     const [selectedSpaceId, setSelectedSpaceId] = useState(null);
     const [inviteEmail, setInviteEmail] = useState('');
 
-    // 컴포넌트 마운트 시 데이터 로드
+    const [loginId, setLoginId] = useState('SD');
+
     useEffect(() => {
-        loadMyProfile();
+        
+        const savedId = localStorage.getItem("loginId");
+        if (savedId) {
+            setLoginId(savedId.substring(0, 2).toUpperCase());
+        }
+
+        loadMyProfile(savedId);
         loadMySpaces();
     }, []);
 
-    const loadMyProfile = async () => {
+    const loadMyProfile = async (savedId) => {
         try {
             const res = await api.get('/user', { params: { deleted: false } });
             setUserInfo({
-                name: res.data.name || res.data.username,
+                name: res.data.name || res.data.username || savedId || '',
                 email: res.data.email || '',
-                username: res.data.username || ''
+                username: res.data.username || savedId || ''
             });
         } catch (error) {
             console.error('프로필 로드 실패:', error);
-            alert('세션이 만료되었습니다. 다시 로그인해주세요.');
-            navigate('/auth');
+            
+            if (savedId) {
+                setUserInfo({ name: savedId, email: '정보 없음', username: savedId });
+            } else {
+                alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+                navigate('/auth');
+            }
         }
     };
 
@@ -52,7 +60,7 @@ export default function Profile() {
                 const groupId = item.groupId;
 
                 if (role === 'ADMIN') {
-                    // ADMIN은 그룹명 중복 제거
+                    
                     if (!adminGroupSet.has(groupName)) {
                         adminGroupSet.set(groupName, groupId);
                         parsedGroups.push({
@@ -60,7 +68,7 @@ export default function Profile() {
                         });
                     }
                 } else if (role === 'USER') {
-                    // USER는 모두 표시
+                    
                     parsedGroups.push({
                         id: groupId, spaceId: item.spaceId, name: groupName, description: workName, role: 'member', roleLabel: '워크 스페이스', code: spaceCode
                     });
@@ -76,18 +84,17 @@ export default function Profile() {
         if (window.confirm("로그아웃 하시겠습니까?")) {
             localStorage.removeItem("accessToken");
             localStorage.removeItem("refreshToken");
+            localStorage.removeItem("loginId"); 
             navigate("/auth");
         }
     };
 
-    // 인계하기 (초대 모달 열기)
     const handleOpenHandoverModal = (spaceId) => {
         setSelectedSpaceId(spaceId);
         setInviteEmail('');
         setIsHandoverModalOpen(true);
     };
-
-    // 실제 인계 API 호출
+    
     const handleConfirmHandover = async () => {
         if (!inviteEmail.trim()) { alert('이메일을 입력해주세요.'); return; }
 
@@ -112,12 +119,11 @@ export default function Profile() {
                 <div style={styles.headerRight}>
                     <button style={styles.logoutBtn} onClick={handleLogout}>로그아웃</button>
                     <button style={styles.editBtn} onClick={() => alert('정보 수정 기능은 준비 중입니다.')}>수정하기</button>
-                    <div style={styles.profileAvatarHeader}>SD</div>
+                    <div style={styles.profileAvatarHeader}>{loginId}</div>
                 </div>
             </header>
 
             <main style={styles.mainContainer}>
-                {/* 왼쪽: 기본 정보 */}
                 <section style={styles.leftPanel}>
                     <div style={styles.panelTitleRow}><span className="material-icons" style={{ color: '#3B82F6', fontSize: '24px' }}>person</span><h2 style={styles.panelTitle}>기본 정보</h2></div>
                     <div style={styles.profileCard}>
@@ -134,7 +140,6 @@ export default function Profile() {
                     </div>
                 </section>
 
-                {/* 오른쪽: 내 그룹 정보 */}
                 <section style={styles.rightPanel}>
                     <div style={styles.panelTitleRowSpaceBetween}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span className="material-icons" style={{ color: '#3B82F6', fontSize: '24px' }}>corporate_fare</span><h2 style={styles.panelTitle}>내 스페이스 정보</h2></div>
@@ -165,7 +170,6 @@ export default function Profile() {
                 </section>
             </main>
 
-            {/* 인계하기(초대) 이메일 모달 */}
             {isHandoverModalOpen && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
@@ -193,7 +197,7 @@ export default function Profile() {
 
 const styles = {
     pageBackground: { backgroundColor: '#F3F4F6', minHeight: '100vh', display: 'flex', flexDirection: 'column' },
-    header: { position: 'relative', height: '64px', backgroundColor: '#FFFFFF', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 40px', position: 'sticky', top: 0, zIndex: 10 },
+    header: { height: '64px', backgroundColor: '#FFFFFF', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 40px', position: 'sticky', top: 0, zIndex: 10 },
     backBtn: { display: 'flex', alignItems: 'center', color: '#6B7280', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', flex: 1 },
     headerTitle: { position: 'absolute', left: '50%', transform: 'translateX(-50%)', fontSize: '18px', fontWeight: '700', color: '#111827' },
     headerRight: { flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '16px' },
