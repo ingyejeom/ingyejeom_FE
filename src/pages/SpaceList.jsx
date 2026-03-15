@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import api from '../api/api';
 
 // 스페이스 관리 페이지 (그룹 관리자용)
 export default function SpaceList() {
@@ -8,12 +9,26 @@ export default function SpaceList() {
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedSpace, setSelectedSpace] = useState(null);
+    const [spaces, setSpaces] = useState([]);
+    const [loginId, setLoginId] = useState('SD');
 
-    const spaces = [
-        { id: 1, title: '2024 신입생 환영회', date: '2024.01.15', assignee: '이인계 (대리)' },
-        { id: 2, title: '멘토링 프로그램', date: '2024.02.01', assignee: '박퇴사 (과장)' },
-        { id: 3, title: '기획 세미나', date: '2024.02.10', assignee: '김영업 (차장)' }
-    ];
+    useEffect(() => {
+        const savedId = localStorage.getItem("loginId");
+        if (savedId) setLoginId(savedId.substring(0, 2).toUpperCase());
+
+        // 백엔드에서 그룹 내 스페이스 목록 가져오기
+        const fetchSpaces = async () => {
+            try {
+                // 특정 groupId에 속한 스페이스 목록을 호출
+                const res = await api.get('/space/list', { params: { groupId: groupId, deleted: false } });
+                setSpaces(res.data || []);
+            } catch (error) {
+                console.error("스페이스 목록 로딩 실패:", error);
+            }
+        };
+
+        if (groupId) fetchSpaces();
+    }, [groupId]);
 
     const handleOpenModal = (space) => {
         setSelectedSpace(space);
@@ -34,48 +49,48 @@ export default function SpaceList() {
                 </div>
                 <div style={styles.headerRight}>
                     <div style={styles.profileAvatar} onClick={() => navigate('/profile')} title="마이 프로필로 이동">
-                        SD
+                        {loginId}
                     </div>
                 </div>
             </header>
 
             <main style={styles.mainContainer}>
-                <h1 style={styles.pageTitle}>스페이스 목록</h1>
+                <h1 style={styles.pageTitle}>스페이스 관리</h1>
                 <div style={styles.listContainer}>
-                    {spaces.map(space => (
-                        <div key={space.id} style={styles.spaceCard}>
-                            <div style={styles.cardInfo}>
-                                <h3 style={styles.spaceTitle}>{space.title}</h3>
-                                <p style={styles.spaceDate}>생성일: {space.date}</p>
-                                <div style={styles.assigneeBox}>
-                                    <span style={styles.assigneeLabel}>인계자:</span>
-                                    <div style={styles.assigneeTag}>
-                                        <div style={styles.avatarMini}>K</div>
-                                        <span>{space.assignee}</span>
-                                    </div>
+                    {spaces.length > 0 ? (
+                        spaces.map(space => (
+                            <div key={space.id} style={styles.spaceCard}>
+                                <div style={styles.cardInfo}>
+                                    <h3 style={styles.spaceTitle}>{space.workName || '이름 없음'}</h3>
+                                    <p style={styles.spaceDate}>생성일: {space.createdAt ? space.createdAt.split('T')[0] : '알 수 없음'}</p>
+                                </div>
+                                <div style={styles.cardActions}>
+                                    <button style={styles.primaryBtn} onClick={() => navigate(`/space/${space.id}`)}>스페이스 입장</button>
+                                    <button style={styles.secondaryBtn} onClick={() => navigate(`/space/${space.id}/archive`)}>자료실 보기</button>
+                                    <button style={styles.tertiaryBtn} onClick={() => handleOpenModal(space)}>초대 / 권한</button>
                                 </div>
                             </div>
-                            <div style={styles.cardActions}>
-                                <button style={styles.primaryBtn} onClick={() => navigate(`/space/${space.id}`)}>스페이스로 이동</button>
-                                <button style={styles.secondaryBtn} onClick={() => navigate(`/space/${space.id}/archive`)}>인수인계서 보기</button>
-                                <button style={styles.tertiaryBtn} onClick={() => handleOpenModal(space)}>권한 변경</button>
-                            </div>
+                        ))
+                    ) : (
+                        <div style={{ textAlign: 'center', padding: '40px', color: '#64748B' }}>
+                            이 그룹에 아직 생성된 스페이스(업무)가 없습니다.
                         </div>
-                    ))}
+                    )}
                 </div>
             </main>
 
             <footer style={styles.footer}>© 2026 INGYEJEOM. All rights reserved.</footer>
 
+            {/* 임시 권한/초대 모달 */}
             {isModalOpen && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
-                        <h2 style={styles.modalTitle}>권한 변경</h2>
-                        <p style={styles.modalDesc}>'{selectedSpace?.title}'의 새로운 인계자를 설정하세요.</p>
+                        <h2 style={styles.modalTitle}>멤버 관리 / 초대</h2>
+                        <p style={styles.modalDesc}>'{selectedSpace?.workName}' 스페이스의 접근 권한을 관리합니다.</p>
                         <input style={styles.modalInput} placeholder="이메일 또는 이름 검색..." />
                         <div style={styles.modalActions}>
                             <button style={styles.modalCancel} onClick={() => setIsModalOpen(false)}>취소</button>
-                            <button style={styles.modalConfirm} onClick={() => { alert('권한이 변경되었습니다.'); setIsModalOpen(false); }}>변경하기</button>
+                            <button style={styles.modalConfirm} onClick={() => { alert('기능 준비 중입니다.'); setIsModalOpen(false); }}>변경하기</button>
                         </div>
                     </div>
                 </div>
@@ -101,10 +116,6 @@ const styles = {
     cardInfo: { display: 'flex', flexDirection: 'column', gap: '8px' },
     spaceTitle: { fontSize: '16px', fontWeight: '700', fontStyle: 'italic', color: '#0F172A' },
     spaceDate: { fontSize: '13px', color: '#64748B' },
-    assigneeBox: { display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' },
-    assigneeLabel: { fontSize: '13px', fontWeight: '700', fontStyle: 'italic', color: '#475569' },
-    assigneeTag: { display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', padding: '4px 12px', borderRadius: '24px', fontSize: '13px', color: '#334155' },
-    avatarMini: { width: '20px', height: '20px', backgroundColor: '#E0E7FF', color: '#4F46E5', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '700', fontStyle: 'italic' },
     cardActions: { display: 'flex', gap: '12px' },
     primaryBtn: { backgroundColor: '#4F46E5', color: '#FFFFFF', padding: '10px 20px', borderRadius: '6px', fontSize: '13px', border: 'none', cursor: 'pointer' },
     secondaryBtn: { backgroundColor: '#FFFFFF', color: '#334155', padding: '10px 20px', borderRadius: '6px', fontSize: '13px', border: '1px solid #E2E8F0', cursor: 'pointer' },
