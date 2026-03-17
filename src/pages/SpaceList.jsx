@@ -20,7 +20,7 @@ export default function SpaceList() {
         const fetchSpaces = async () => {
             try {
                 // 특정 groupId에 속한 스페이스 목록을 호출
-                const res = await api.get('/space/list', { params: { groupId: groupId, deleted: false } });
+                const res = await api.get('/userSpace/getAdminSpaces', { params: { groupId: groupId } });
                 setSpaces(res.data || []);
             } catch (error) {
                 console.error("스페이스 목록 로딩 실패:", error);
