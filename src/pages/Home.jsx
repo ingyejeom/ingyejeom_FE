@@ -18,7 +18,7 @@ export default function Home() {
         // 2. 내 그룹/스페이스 목록 가져오기 및 가공
         const fetchGroups = async () => {
             try {
-                const response = await api.get('/userSpace/list', { params: { deleted: false } });
+                const response = await api.get('/userSpace/getDashboardSpaces', { params: { deleted: false } });
 
                 const adminGroupSet = new Set();
                 const processedGroups = [];

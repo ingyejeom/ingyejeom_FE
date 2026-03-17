@@ -48,7 +48,7 @@ export default function Space() {
         // 3. 드롭다운 메뉴용 스페이스 목록 가져오기
         const fetchMySpaces = async () => {
             try {
-                const res = await api.get('/userSpace/list', { params: { deleted: false } });
+                const res = await api.get('/userSpace/getDashboardSpaces', { params: { deleted: false } });
                 // 드롭다운에는 내가 참여/관리 중인 목록을 보여줌
                 const spaces = res.data.map(item => ({
                     id: item.spaceId, // 이동할 spaceId
@@ -65,7 +65,37 @@ export default function Space() {
 
         fetchCurrentSpace();
         fetchMySpaces();
+        fetchChatHistory();
     }, [spaceId]);
+
+    // 챗봇 히스토리 불러오기 함수
+    const fetchChatHistory = async () => {
+        try {
+            const res = await api.get(`/chatbot/history/${spaceId}`);
+            if (res.data && res.data.length > 0) {
+                // 백엔드 데이터를 리액트 메시지 형식으로 변환
+                const historyMessages = res.data.flatMap(chat => [
+                    {
+                        id: `user-${chat.id || Date.now() + Math.random()}`,
+                        sender: 'user',
+                        text: chat.question,
+                        time: '이전 기록' // 혹은 실제 시간 데이터가 있다면 연결
+                    },
+                    {
+                        id: `bot-${chat.id || Date.now() + Math.random()}`,
+                        sender: 'bot',
+                        text: chat.answer,
+                        time: '이전 기록'
+                    }
+                ]);
+
+                // 기존 환영 메시지 유지하면서 히스토리 추가
+                setMessages(prev => [prev[0], ...historyMessages]);
+            }
+        } catch (error) {
+            console.error("채팅 내역 로딩 실패:", error);
+        }
+    };
 
     // 챗봇 메시지 전송 핸들러
     const handleSendMessage = async () => {

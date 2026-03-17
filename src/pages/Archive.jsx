@@ -6,23 +6,31 @@ export default function Archive() {
     const { spaceId } = useParams();
     const navigate = useNavigate();
 
-    // 상태 관리
+    // --- 기본 상태 관리 ---
     const [currentSpace, setCurrentSpace] = useState({ name: '로딩 중...', department: '' });
     const [mySpaces, setMySpaces] = useState([]);
     const [loginId, setLoginId] = useState('SD');
 
-    // 모달 상태
+    // --- 모달 상태 ---
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
-    // 데이터 상태
+    // --- 데이터 및 탐색기 상태 ---
     const [selectedFile, setSelectedFile] = useState(null);
     const [latestHandover, setLatestHandover] = useState(null);
     const [historyList, setHistoryList] = useState([]);
-    const [files, setFiles] = useState([]); // 폴더 대신 실제 파일 목록으로 변경
+    const [files, setFiles] = useState([]); 
 
-    // 1. 초기 데이터 로드
+    // --- 탐색기 경로 상태 ---
+    const [currentFolderId, setCurrentFolderId] = useState(null);
+    const [folderStack, setFolderStack] = useState([{ id: null, name: 'Home' }]);
+
+    // --- [추가] 드래그 앤 드롭 및 뷰어 상태 ---
+    const [dragOverTarget, setDragOverTarget] = useState(null); // 현재 드래그가 머물고 있는 타겟 ID
+    const [previewData, setPreviewData] = useState(null); // 뷰어에 표시할 데이터 객체
+
+    // 1. 초기 데이터 로드 (스페이스 정보 및 인수인계서)
     useEffect(() => {
         const savedId = localStorage.getItem("loginId");
         if (savedId) setLoginId(savedId.substring(0, 2).toUpperCase());
@@ -46,67 +54,216 @@ export default function Archive() {
             } catch (error) { console.error(error); }
         };
 
+        const loadHandovers = async () => {
+            try {
+                const handoverRes = await api.get(`/handover/space/${spaceId}`);
+                const handovers = handoverRes.data || [];
+                if (handovers.length > 0) {
+                    handovers.sort((a, b) => b.id - a.id);
+                    setLatestHandover(handovers[0]); 
+                    setHistoryList(handovers.slice(1)); 
+                } else {
+                    setLatestHandover(null);
+                    setHistoryList([]);
+                }
+            } catch (error) {
+                console.error('인수인계서 데이터 로딩 에러:', error);
+            }
+        };
+
         fetchSpaceInfo();
         fetchMySpaces();
-        loadArchiveData(); // 인수인계서 및 파일 목록 로드
+        loadHandovers(); 
     }, [spaceId]);
 
-    // 2. 인수인계서 및 첨부파일 목록 불러오기
-    const loadArchiveData = async () => {
+    // 2. 파일 목록 별도 로드 (폴더 위치가 바뀔 때마다 실행)
+    const fetchFiles = async () => {
+        if (!spaceId) return;
         try {
-            // (1) 인수인계서 목록 조회
-            const handoverRes = await api.get(`/handover/space/${spaceId}`);
-            const handovers = handoverRes.data || [];
-
-            if (handovers.length > 0) {
-                // ID 기준 내림차순(최신순) 정렬
-                handovers.sort((a, b) => b.id - a.id);
-                setLatestHandover(handovers[0]); // 가장 최신 데이터
-                setHistoryList(handovers.slice(1)); // 나머지는 이전 기록으로
-            } else {
-                setLatestHandover(null);
-                setHistoryList([]);
-            }
-
-            // (2) 파일 목록 조회
-            const fileRes = await api.get('/file/list', { params: { spaceId: spaceId } });
+            const fileRes = await api.get('/file/list', { 
+                params: { spaceId: spaceId, folderId: currentFolderId } 
+            });
             setFiles(fileRes.data || []);
-
         } catch (error) {
-            console.error('자료실 데이터 로딩 에러:', error);
+            console.error('파일 로딩 에러:', error);
         }
     };
 
-    // 3. 실제 파일 업로드 처리 (Multipart Form Data)
+    useEffect(() => {
+        let isMounted = true; 
+        const load = async () => {
+            if (!spaceId) return;
+            try {
+                const fileRes = await api.get('/file/list', { 
+                    params: { spaceId: spaceId, folderId: currentFolderId } 
+                });
+                if (isMounted) setFiles(fileRes.data || []);
+            } catch (error) { console.error('파일 로딩 에러:', error); }
+        };
+        load();
+        return () => { isMounted = false; };
+    }, [spaceId, currentFolderId]);
+
+    // 3. 실제 파일 업로드 처리
     const handleFileUpload = async () => {
         if (!selectedFile) {
             alert('업로드할 파일을 선택해주세요.');
             return;
         }
 
-        // 파일 전송을 위한 FormData 객체 생성
         const formData = new FormData();
         formData.append('file', selectedFile);
         formData.append('spaceId', spaceId.toString());
+        if (currentFolderId) {
+            formData.append('folderId', currentFolderId.toString());
+        }
 
         try {
-            // 파일 업로드는 Content-Type을 'multipart/form-data'로 지정해야 함.
-            await api.post('/file', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
+            // [수정됨] 415 에러 방지를 위해 multipart/form-data 헤더를 다시 추가하고,
+            // 챗봇 서버의 응답을 온전히 기다리기 위해 timeout: 0을 함께 적용합니다.
+            await api.post('/file', formData, { 
+                headers: { 'Content-Type': 'multipart/form-data' },
+                timeout: 0 
             });
-
+            
             alert('자료가 성공적으로 업로드되었습니다!');
             setIsUploadModalOpen(false);
             setSelectedFile(null);
-            loadArchiveData(); // 업로드 후 파일 목록 새로고침
-
+            fetchFiles(); 
         } catch (error) {
             console.error('파일 업로드 에러:', error);
             alert('파일 업로드에 실패했습니다.');
         }
     };
 
-    // 날짜 포맷팅 함수 (2024-01-01T12:00:00 -> 2024.01.01)
+    // --- [탐색기 핵심 기능] ---
+    
+    // 폴더 진입
+    const enterFolder = (folderId, folderName) => {
+        setFolderStack(prev => {
+            if (prev[prev.length - 1].id === folderId) return prev;
+            setCurrentFolderId(folderId);
+            return [...prev, { id: folderId, name: folderName }];
+        });
+    };
+
+    // 파일명 길이 포맷팅
+    const formatFileName = (name) => {
+        if (!name) return "이름 없음";
+        return name.length > 17 ? name.substring(0, 17) + "..." : name;
+    };
+
+    // 상위 경로(Breadcrumb) 클릭 이동
+    const goToFolder = (index) => {
+        setFolderStack(prev => {
+            if (index === prev.length - 1) return prev;
+            const newStack = prev.slice(0, index + 1);
+            setCurrentFolderId(newStack[newStack.length - 1].id);
+            return newStack;
+        });
+    };
+
+    // 새 폴더 생성
+    const createNewFolder = async () => {
+        const name = prompt("새 폴더 이름을 입력하세요:");
+        if (!name || name.trim() === "") return;
+        try {
+            await api.post('/file/folder', { spaceId, parentId: currentFolderId, name: name.trim() });
+            fetchFiles();
+        } catch (e) { alert("폴더 생성 실패"); }
+    };
+
+    // 파일/폴더 삭제
+    const deleteItem = async (id, type) => {
+        if (!window.confirm(type === 'FOLDER' ? "폴더를 삭제하시겠습니까?" : "파일을 삭제하시겠습니까?")) return;
+        try {
+            const url = type === 'FOLDER' ? '/file/folder' : '/file';
+            await api.delete(url, { data: { id: id } }); 
+            fetchFiles();
+        } catch (e) { alert("삭제 실패"); }
+    };
+
+    // 파일 다운로드 (Blob)
+    const handleDownload = async (file) => {
+        try {
+            const res = await api.get(`/file/${file.id}?mode=download`, { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([res.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', file.name || file.originalFileName); 
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch (e) { alert("다운로드 실패"); }
+    };
+
+    // --- [수정됨: 텍스트 뷰어 기능 추가] ---
+    const handlePreview = async (file) => {
+        try {
+            const res = await api.get(`/file/${file.id}?mode=view`, { responseType: 'blob' });
+            const contentType = res.headers['content-type'] || '';
+            const fileBlob = new Blob([res.data], { type: contentType });
+            
+            const filename = file.name || file.originalFileName || "";
+            const ext = filename.split('.').pop().toLowerCase();
+
+            // [논리적 이유] 파일 형식에 따라 브라우저 내장 렌더러(이미지, PDF)를 사용하거나, 
+            // 텍스트 파일인 경우 Blob 객체의 텍스트를 직접 추출하여 React 상태에 저장합니다.
+            if (contentType.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) {
+                setPreviewData({ type: 'image', url: window.URL.createObjectURL(fileBlob), name: filename });
+            } else if (contentType === 'application/pdf' || ext === 'pdf') {
+                setPreviewData({ type: 'pdf', url: window.URL.createObjectURL(fileBlob), name: filename });
+            } else if (contentType.startsWith('text/') || ['txt', 'md', 'json', 'xml', 'java', 'js', 'html'].includes(ext)) {
+                const text = await fileBlob.text(); // 비동기로 텍스트 읽기
+                setPreviewData({ type: 'text', content: text, name: filename });
+            } else {
+                alert("미리보기를 지원하지 않는 형식입니다.");
+            }
+        } catch (e) { alert("미리보기를 불러오지 못했습니다."); }
+    };
+
+    // --- [추가됨: 드래그 앤 드롭 이벤트 제어] ---
+    const handleDragStart = (e, id, type) => {
+        // 드래그 대상의 고유 식별자와 타입을 클립보드(dataTransfer)에 임시 저장합니다.
+        e.dataTransfer.setData("text/plain", JSON.stringify({ id, type }));
+        e.dataTransfer.effectAllowed = "move";
+    };
+
+    const handleDragOver = (e, targetId) => {
+        e.preventDefault(); // 기본 동작을 막아야 drop 이벤트가 정상적으로 트리거됩니다.
+        e.dataTransfer.dropEffect = "move";
+        setDragOverTarget(targetId); // 시각적 피드백을 위해 상태 업데이트
+    };
+
+    const handleDragLeave = () => {
+        setDragOverTarget(null);
+    };
+
+    const handleDrop = async (e, targetFolderId) => {
+        e.preventDefault();
+        setDragOverTarget(null);
+
+        const data = e.dataTransfer.getData("text/plain");
+        if (!data) return;
+
+        const draggedItem = JSON.parse(data);
+
+        // 논리적 오류 방지: 폴더를 자기 자신에게 넣거나, 이미 위치한 현재 폴더로 이동시키는 행위 차단
+        if (draggedItem.type === 'FOLDER' && draggedItem.id === targetFolderId) return;
+        if (currentFolderId === targetFolderId) return;
+
+        try {
+            await api.put('/file/move', { 
+                id: draggedItem.id, 
+                type: draggedItem.type, 
+                targetFolderId: targetFolderId 
+            });
+            fetchFiles(); // 이동 성공 후 즉시 파일 목록 갱신
+        } catch (err) { 
+            alert("이동에 실패했습니다."); 
+        }
+    };
+
     const formatDate = (dateString) => {
         if (!dateString) return '';
         return dateString.split('T')[0].replace(/-/g, '.');
@@ -140,7 +297,6 @@ export default function Archive() {
             <main style={styles.mainContainer}>
                 <div style={styles.titleSection}>
                     <div><h2 style={styles.pageTitle}>자료실 관리</h2><p style={styles.pageSubTitle}>팀 내 중요 문서와 인수인계 자료를 관리하는 공간입니다.</p></div>
-                    <button style={styles.addBtn} onClick={() => setIsUploadModalOpen(true)}>+ 파일 첨부</button>
                 </div>
 
                 {/* 최신 인수인계서 섹션 */}
@@ -175,33 +331,95 @@ export default function Archive() {
                     )}
                 </div>
 
-                {/* 첨부 파일(자료) 섹션 */}
+                {/* 파일 탐색기 섹션 */}
                 <div style={styles.section}>
                     <div style={styles.sectionHeader}>
-                        <h3 style={styles.sectionTitle}>첨부 파일 목록</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <h3 style={styles.sectionTitle}>파일 탐색기</h3>
+                            
+                            {/* 상위 경로(Breadcrumb) 영역 - 드롭 존으로 활용 */}
+                            <div style={{ display: 'flex', gap: '8px', fontSize: '13px', color: '#64748B' }}>
+                                {folderStack.map((folder, idx) => (
+                                    <span key={idx}>
+                                        <span
+                                            style={{ 
+                                                cursor: idx === folderStack.length - 1 ? 'default' : 'pointer', 
+                                                color: idx === folderStack.length - 1 ? '#0F172A' : '#4F46E5', 
+                                                fontWeight: idx === folderStack.length - 1 ? 'bold' : 'normal',
+                                                ...(dragOverTarget === folder.id ? styles.dragOverText : {}) 
+                                            }}
+                                            onClick={() => idx !== folderStack.length - 1 && goToFolder(idx)}
+                                            onDragOver={(e) => handleDragOver(e, folder.id)}
+                                            onDragLeave={handleDragLeave}
+                                            onDrop={(e) => handleDrop(e, folder.id)}
+                                        >
+                                            {folder.name}
+                                        </span>
+                                        {idx < folderStack.length - 1 && <span style={{ marginLeft: '8px' }}>&gt;</span>}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                            <button style={styles.secondaryBtn} onClick={createNewFolder}>+ 새 폴더</button>
+                            <button style={styles.addBtn} onClick={() => setIsUploadModalOpen(true)}>+ 파일 첨부</button>
+                        </div>
                     </div>
 
                     {files.length > 0 ? (
                         <div style={styles.folderGrid}>
                             {files.map(file => (
-                                <div key={file.id} style={styles.folderCard} onClick={() => alert(`${file.originalFileName} 파일 다운로드(API 구현 필요)`)}>
-                                    <span className="material-icons" style={styles.fileIcon}>description</span>
-                                    <div style={{ overflow: 'hidden' }}>
-                                        <h4 style={styles.folderName} title={file.originalFileName}>{file.originalFileName}</h4>
-                                        <p style={styles.folderCount}>{file.uploaderName} • {(file.size / 1024).toFixed(1)} KB</p>
-                                    </div>
+                                // 파일/폴더 렌더링 카드 - 드래그 속성 부여
+                                <div 
+                                    key={`${file.type}-${file.id}`} 
+                                    style={{ 
+                                        ...styles.fileCard, 
+                                        ...(dragOverTarget === file.id && file.type === 'FOLDER' ? styles.dragOverCard : {}) 
+                                    }}
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, file.id, file.type)}
+                                    onDragOver={file.type === 'FOLDER' ? (e) => handleDragOver(e, file.id) : undefined}
+                                    onDragLeave={file.type === 'FOLDER' ? handleDragLeave : undefined}
+                                    onDrop={file.type === 'FOLDER' ? (e) => handleDrop(e, file.id) : undefined}
+                                >
+                                    {file.type === 'FOLDER' ? (
+                                        <>
+                                            <span className="material-icons" style={styles.folderIcon}>folder</span>
+                                            <div style={{ overflow: 'hidden', flex: 1, width: '100%', textAlign: 'center' }}>
+                                                <h4 style={styles.fileName} title={file.name}>{formatFileName(file.name)}</h4>
+                                                <p style={styles.fileSize}>폴더</p>
+                                            </div>
+                                            <div style={styles.actionButtons}>
+                                                <button style={styles.actionBtn} onClick={() => enterFolder(file.id, file.name)}>열기</button>
+                                                <button style={styles.actionBtnDel} onClick={() => deleteItem(file.id, 'FOLDER')}>삭제</button>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="material-icons" style={styles.fileIcon}>description</span>
+                                            <div style={{ overflow: 'hidden', flex: 1, width: '100%', textAlign: 'center' }}>
+                                                <h4 style={styles.fileName} title={file.name || file.originalFileName}>{formatFileName(file.name || file.originalFileName)}</h4>
+                                                <p style={styles.fileSize}>{(file.size / 1024).toFixed(1)} KB • {file.uploaderName}</p>
+                                            </div>
+                                            <div style={styles.actionButtons}>
+                                                <button style={styles.actionBtn} onClick={() => handlePreview(file)}>보기</button>
+                                                <button style={styles.actionBtn} onClick={() => handleDownload(file)}>다운</button>
+                                                <button style={styles.actionBtnDel} onClick={() => deleteItem(file.id, 'FILE')}>삭제</button>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             ))}
                         </div>
                     ) : (
                         <div style={styles.emptyCard}>
-                            <p style={styles.emptyText}>업로드된 파일이 없습니다.</p>
+                            <p style={styles.emptyText}>현재 폴더에 자료가 없습니다.</p>
                         </div>
                     )}
                 </div>
             </main>
 
-            <footer style={styles.footer}>© 2024 INGYEJEOM. All rights reserved.</footer>
+            <footer style={styles.footer}>© 2026 INGYEJEOM. All rights reserved.</footer>
 
             {/* 파일 업로드 모달 */}
             {isUploadModalOpen && (
@@ -229,6 +447,23 @@ export default function Archive() {
                                     <span className="material-icons" style={{ color: '#94A3B8' }}>chevron_right</span>
                                 </div>
                             ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 텍스트 / 이미지 / PDF 뷰어 모달 */}
+            {previewData && (
+                <div style={styles.modalOverlay} onClick={() => setPreviewData(null)}>
+                    <div style={styles.previewContent} onClick={(e) => e.stopPropagation()}>
+                        <div style={styles.modalHeader}>
+                            <h3 style={styles.modalTitle}>{previewData.name}</h3>
+                            <button style={styles.closeBtn} onClick={() => setPreviewData(null)}>✕</button>
+                        </div>
+                        <div style={styles.previewBody}>
+                            {previewData.type === 'image' && <img src={previewData.url} alt="preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />}
+                            {previewData.type === 'pdf' && <iframe src={previewData.url} style={{ width: '100%', height: '60vh', border: 'none' }} title="pdf-viewer" />}
+                            {previewData.type === 'text' && <div style={styles.textBox}>{previewData.content}</div>}
                         </div>
                     </div>
                 </div>
@@ -272,11 +507,7 @@ const styles = {
     textBtn: { background: 'none', border: 'none', color: '#4F46E5', fontSize: '13px', fontWeight: '600', cursor: 'pointer' },
     emptyCard: { backgroundColor: '#F8FAFC', border: '1px dashed #CBD5E1', borderRadius: '12px', padding: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' },
     emptyText: { fontSize: '14px', color: '#64748B' },
-    folderGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' },
-    folderCard: { backgroundColor: '#fff', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '20px', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer' },
-    fileIcon: { color: '#6366F1', fontSize: '40px' },
-    folderName: { fontSize: '15px', fontWeight: '700', color: '#1E293B', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-    folderCount: { fontSize: '12px', color: '#64748B' },
+    folderGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' },
     footer: { textAlign: 'center', padding: '24px', fontSize: '12px', color: '#94A3B8', borderTop: '1px solid #E2E8F0', backgroundColor: '#fff' },
     modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
     modalContent: { backgroundColor: '#fff', padding: '32px', borderRadius: '12px', width: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' },
@@ -292,5 +523,24 @@ const styles = {
     historyList: { overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' },
     historyItem: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', cursor: 'pointer' },
     historyTitle: { fontSize: '15px', fontWeight: '700', color: '#1E293B', marginBottom: '4px' },
-    historyMeta: { fontSize: '12px', color: '#64748B' }
+    historyMeta: { fontSize: '12px', color: '#64748B' },
+    
+    secondaryBtn: { padding: '12px 16px', backgroundColor: '#fff', color: '#4F46E5', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', border: '1px solid #4F46E5' },
+    fileCard: { backgroundColor: '#fff', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '20px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', transition: 'box-shadow 0.2s' },
+    folderIcon: { color: '#FBBF24', fontSize: '48px' }, 
+    fileIcon: { color: '#6366F1', fontSize: '48px' }, 
+    fileName: { fontSize: '14px', fontWeight: '700', color: '#1E293B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: '4px 0', width: '100%' },
+    fileSize: { fontSize: '12px', color: '#64748B', margin: 0 },
+    actionButtons: { display: 'flex', gap: '6px', width: '100%', marginTop: 'auto', paddingTop: '12px', borderTop: '1px solid #F1F5F9' },
+    actionBtn: { flex: 1, padding: '8px 0', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: '600' },
+    actionBtnDel: { flex: 1, padding: '8px 0', backgroundColor: '#FEE2E2', color: '#EF4444', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: '600' },
+
+    // --- 추가: 드래그 앤 드롭 전용 스타일 ---
+    dragOverCard: { border: '2px dashed #4F46E5', backgroundColor: '#EEF2FF', transform: 'scale(1.05)', zIndex: 5 },
+    dragOverText: { outline: '2px dashed #4F46E5', backgroundColor: '#EEF2FF', padding: '2px 4px', borderRadius: '4px' },
+
+    // --- 추가: 뷰어 전용 스타일 ---
+    previewContent: { backgroundColor: '#fff', padding: '32px', borderRadius: '12px', width: '80%', maxWidth: '900px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' },
+    previewBody: { flex: 1, overflow: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#222', borderRadius: '8px', padding: '20px' },
+    textBox: { backgroundColor: '#fff', padding: '40px', width: '100%', minHeight: '100%', whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '14px', color: '#333', lineHeight: '1.6', borderRadius: '4px', boxShadow: '0 0 10px rgba(0,0,0,0.3)' }
 };
