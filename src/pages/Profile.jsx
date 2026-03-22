@@ -7,6 +7,7 @@ export default function Profile() {
 
     const [userInfo, setUserInfo] = useState({ name: '-', email: '-', username: '' });
     const [myGroups, setMyGroups] = useState([]);
+
     const [isHandoverModalOpen, setIsHandoverModalOpen] = useState(false);
     const [selectedSpaceId, setSelectedSpaceId] = useState(null);
     const [inviteEmail, setInviteEmail] = useState('');
@@ -14,7 +15,6 @@ export default function Profile() {
     const [loginId, setLoginId] = useState('SD');
 
     useEffect(() => {
-        
         const savedId = localStorage.getItem("loginId");
         if (savedId) {
             setLoginId(savedId.substring(0, 2).toUpperCase());
@@ -34,7 +34,6 @@ export default function Profile() {
             });
         } catch (error) {
             console.error('프로필 로드 실패:', error);
-            
             if (savedId) {
                 setUserInfo({ name: savedId, email: '정보 없음', username: savedId });
             } else {
@@ -46,7 +45,8 @@ export default function Profile() {
 
     const loadMySpaces = async () => {
         try {
-            const res = await api.get('/userSpace/list', { params: { deleted: false } });
+            // 💡 [API 최적화] 백엔드의 프로필 전용 API를 사용합니다.
+            const res = await api.get('/userSpace/getProfileSpaces', { params: { deleted: false } });
             const data = res.data;
 
             const adminGroupSet = new Map();
@@ -60,7 +60,6 @@ export default function Profile() {
                 const groupId = item.groupId;
 
                 if (role === 'ADMIN') {
-                    
                     if (!adminGroupSet.has(groupName)) {
                         adminGroupSet.set(groupName, groupId);
                         parsedGroups.push({
@@ -68,7 +67,6 @@ export default function Profile() {
                         });
                     }
                 } else if (role === 'USER') {
-                    
                     parsedGroups.push({
                         id: groupId, spaceId: item.spaceId, name: groupName, description: workName, role: 'member', roleLabel: '워크 스페이스', code: spaceCode
                     });
@@ -84,7 +82,7 @@ export default function Profile() {
         if (window.confirm("로그아웃 하시겠습니까?")) {
             localStorage.removeItem("accessToken");
             localStorage.removeItem("refreshToken");
-            localStorage.removeItem("loginId"); 
+            localStorage.removeItem("loginId");
             navigate("/auth");
         }
     };
@@ -94,7 +92,7 @@ export default function Profile() {
         setInviteEmail('');
         setIsHandoverModalOpen(true);
     };
-    
+
     const handleConfirmHandover = async () => {
         if (!inviteEmail.trim()) { alert('이메일을 입력해주세요.'); return; }
 
@@ -175,15 +173,7 @@ export default function Profile() {
                     <div style={styles.modalContent}>
                         <h2 style={styles.modalTitle}>업무 인계하기</h2>
                         <p style={styles.modalDesc}>업무를 인계받을 사용자의 이메일을 입력하세요.</p>
-
-                        <input
-                            type="email"
-                            style={styles.modalInput}
-                            placeholder="example@email.com"
-                            value={inviteEmail}
-                            onChange={(e) => setInviteEmail(e.target.value)}
-                        />
-
+                        <input type="email" style={styles.modalInput} placeholder="example@email.com" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
                         <div style={styles.modalActions}>
                             <button style={styles.modalCancel} onClick={() => setIsHandoverModalOpen(false)}>취소</button>
                             <button style={styles.modalConfirm} onClick={handleConfirmHandover}>초대 발송</button>
@@ -197,7 +187,7 @@ export default function Profile() {
 
 const styles = {
     pageBackground: { backgroundColor: '#F3F4F6', minHeight: '100vh', display: 'flex', flexDirection: 'column' },
-    header: { height: '64px', backgroundColor: '#FFFFFF', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 40px', position: 'sticky', top: 0, zIndex: 10 },
+    header: { position: 'relative', height: '64px', backgroundColor: '#FFFFFF', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 40px', position: 'sticky', top: 0, zIndex: 10 },
     backBtn: { display: 'flex', alignItems: 'center', color: '#6B7280', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', flex: 1 },
     headerTitle: { position: 'absolute', left: '50%', transform: 'translateX(-50%)', fontSize: '18px', fontWeight: '700', color: '#111827' },
     headerRight: { flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '16px' },
