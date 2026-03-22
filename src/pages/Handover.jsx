@@ -20,6 +20,10 @@ export default function Handover() {
     const location = useLocation();
     const { id } = useParams();
 
+    // 💡 URL에서 넘어온 타겟 스페이스 ID 추출
+    const searchParams = new URLSearchParams(location.search);
+    const targetSpaceId = searchParams.get('spaceId');
+
     const isViewMode = location.pathname.includes('/view');
     const isEditMode = location.pathname.includes('/edit') || id != null;
 
@@ -59,10 +63,21 @@ export default function Handover() {
             };
             fetchHandover();
         } else {
+            // 💡 [버그 수정됨] 정확한 userSpaceId 매칭
             const fetchUserSpace = async () => {
                 try {
                     const res = await api.get('/userSpace/list', { params: { deleted: false } });
-                    if (res.data.length > 0) {
+
+                    // 타겟 스페이스 아이디와 일치하는 내 참여 스페이스 정보를 찾음
+                    const matchingSpace = targetSpaceId
+                        ? res.data.find(item => item.spaceId === parseInt(targetSpaceId))
+                        : null;
+
+                    if (matchingSpace) {
+                        setUserSpaceId(matchingSpace.id); // 올바른 ID 세팅!
+                        setMetaInfo(prev => ({ ...prev, groupName: matchingSpace.groupName, workName: matchingSpace.workName }));
+                    } else if (res.data.length > 0) {
+                        // 못 찾을 경우 예외처리
                         setUserSpaceId(res.data[0].id);
                         setMetaInfo(prev => ({ ...prev, groupName: res.data[0].groupName, workName: res.data[0].workName }));
                     }
@@ -70,7 +85,7 @@ export default function Handover() {
             };
             fetchUserSpace();
         }
-    }, [id]);
+    }, [id, targetSpaceId]);
 
     const addModule = (type) => {
         const newModule = {
@@ -114,6 +129,7 @@ export default function Handover() {
             if (id) {
                 await api.put('/handover', { id: parseInt(id), title, role, text: payloadText });
                 alert('저장되었습니다.');
+                navigate(-1);
             } else {
                 if (!userSpaceId) { alert('스페이스 정보를 찾을 수 없습니다.'); return; }
                 await api.post('/handover', { title, role, text: payloadText, userSpaceId });
@@ -229,7 +245,6 @@ export default function Handover() {
                     <div style={full}><label style={styles.label}>품목명</label><input style={styles.input} value={data.itemName || ''} onChange={(e) => handleChange('itemName', e)} /></div>
                     <div style={full}><label style={styles.label}>보관 위치</label><input style={styles.input} value={data.storageLocation || ''} onChange={(e) => handleChange('storageLocation', e)} /></div>
                     <div style={full}><label style={styles.label}>수량 / 상태</label><input style={styles.input} value={data.quantityStatus || ''} onChange={(e) => handleChange('quantityStatus', e)} /></div>
-                    {/* 💡 중복 스타일 속성 수정 완료 */}
                     <div style={{ ...full, display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <input type="checkbox" checked={data.isReturned || false} onChange={(e) => handleChange('isReturned', e)} />
                         <label style={{ fontSize: '14px' }}>반납 여부</label>
@@ -265,7 +280,6 @@ export default function Handover() {
                     <hr style={styles.divider} />
                     <div style={styles.formRow}><label style={styles.label}>관련 업무 (Task)</label><input style={styles.input} value={data.relatedTask || ''} onChange={(e) => handleChange('relatedTask', e)} /></div>
                     <div style={styles.formRow}><label style={styles.label}>참고 문서</label><input style={styles.input} value={data.referenceDoc || ''} onChange={(e) => handleChange('referenceDoc', e)} /></div>
-                    {/* 💡 중복 스타일 속성 수정 완료 */}
                     <div style={{ ...full, display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <input type="checkbox" checked={data.isExternalShareable || false} onChange={(e) => handleChange('isExternalShareable', e)} />
                         <label style={{ fontSize: '14px' }}>외부 공유 가능 여부</label>
@@ -299,7 +313,6 @@ export default function Handover() {
                     <hr style={styles.divider} />
                     <div style={styles.formRow}><label style={styles.label}>관련 업무 (Task)</label><input style={styles.input} value={data.relatedTask || ''} onChange={(e) => handleChange('relatedTask', e)} /></div>
                     <div style={styles.formRow}><label style={styles.label}>참고 자료</label><input style={styles.input} value={data.referenceUrl || ''} onChange={(e) => handleChange('referenceUrl', e)} /></div>
-                    {/* 💡 중복 스타일 속성 수정 완료 */}
                     <div style={{ ...full, display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <input type="checkbox" checked={data.isExternalShareable || false} onChange={(e) => handleChange('isExternalShareable', e)} />
                         <label style={{ fontSize: '14px' }}>외부 공유 가능 여부</label>
