@@ -94,8 +94,7 @@ export default function Space() {
                 sender: 'bot',
                 text: response.data.answer || response.data.message || response.data || '답변이 완료되었습니다.',
                 time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-                // referenceFile: response.data.referenceFile // 백엔드에서 출처를 준다면 연결 가능
-                sources: response.data.sources // 근거 자료 출처
+                sources: response.data.sources
             };
             setMessages(prev => [...prev, botMsg]);
 
@@ -182,24 +181,8 @@ export default function Space() {
                                                 </div>
                                             </div>
                                         ))}
-                                    
-                                msg.sources && msg.sources.length > 0 && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
-                                        {msg.sources.slice(0, 3).map((src, index) => (
-                                            <div key={index} style={{ ...styles.referenceBox, marginTop: 0, padding: '8px 12px' }}>
-                                                <div style={styles.refIcon}>
-                                                    <span className="material-icons" style={{ color: '#fff', fontSize: '14px' }}>picture_as_pdf</span>
-                                                </div>
-                                                <div>
-                                                    <p style={styles.refName}>{src.source}</p>
-                                                    {/* page가 null이 아닐 때만 렌더링 */}
-                                                    {src.page != null && <p style={styles.refPage}>{src.page}쪽</p>}
-                                                </div>
-                                            </div>
-                                        ))}
                                     </div>
-                                )
-                                } 
+                                )}
                             </div>
                             <div style={styles.timeText}>{msg.time}</div>
                         </div>
