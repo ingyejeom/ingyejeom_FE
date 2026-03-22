@@ -6,7 +6,6 @@ export default function Profile() {
     const navigate = useNavigate();
 
     const [userInfo, setUserInfo] = useState({ name: '-', email: '-', username: '' });
-    // 관리 그룹과 참여 스페이스 분리
     const [adminGroups, setAdminGroups] = useState([]);
     const [memberSpaces, setMemberSpaces] = useState([]);
 
@@ -14,18 +13,25 @@ export default function Profile() {
     const [selectedSpaceId, setSelectedSpaceId] = useState(null);
     const [inviteEmail, setInviteEmail] = useState('');
 
+    const [loginId, setLoginId] = useState('SD');
+
     useEffect(() => {
-        loadMyProfile();
+        const savedId = localStorage.getItem("loginId");
+        if (savedId) {
+            setLoginId(savedId.substring(0, 2).toUpperCase());
+        }
+
+        loadMyProfile(savedId);
         loadMySpaces();
     }, []);
 
-    const loadMyProfile = async () => {
+    const loadMyProfile = async (savedId) => {
         try {
             const res = await api.get('/user', { params: { deleted: false } });
             setUserInfo({
-                name: res.data.name || res.data.username || '',
+                name: res.data.name || res.data.username || savedId || '',
                 email: res.data.email || '',
-                username: res.data.username || ''
+                username: res.data.username || savedId || ''
             });
         } catch (error) {
             const savedId = localStorage.getItem("loginId");
@@ -62,7 +68,6 @@ export default function Profile() {
                     }
                 } else if (role === 'USER') {
                     parsedMembers.push({
-                        // 관리자 이름은 현재 API 응답에 없으므로, 향후 백엔드에서 추가 시 item.adminName 등으로 교체
                         id: groupId, spaceId: item.spaceId, name: groupName, description: workName, role: 'member', roleLabel: '워크 스페이스', code: spaceCode, adminName: '확인 필요'
                     });
                 }
@@ -98,8 +103,6 @@ export default function Profile() {
             });
             alert('인계(초대) 메일을 발송했습니다.');
             setIsHandoverModalOpen(false);
-
-            // 초대 성공 후 목록 리로드
             loadMySpaces();
         } catch (error) {
             alert(error.response?.data?.message || "초대에 실패했습니다.");
@@ -113,7 +116,6 @@ export default function Profile() {
                 <h1 style={styles.headerTitle}>마이 프로필</h1>
                 <div style={styles.headerRight}>
                     <button style={styles.logoutBtn} onClick={handleLogout}>로그아웃</button>
-                    {/* 프로필 이미지 아이콘으로 통일 */}
                     <div style={styles.profileAvatarHeader}>
                         <span className="material-icons" style={{ fontSize: '18px' }}>person</span>
                     </div>
@@ -127,7 +129,6 @@ export default function Profile() {
                             <span className="material-icons" style={{ color: '#3B82F6', fontSize: '24px' }}>person</span>
                             <h2 style={styles.panelTitle}>기본 정보</h2>
                         </div>
-                        {/* 수정하기 버튼 이동 완료 */}
                         <button style={styles.editBtn} onClick={() => alert('정보 수정 기능은 준비 중입니다.')}>수정하기</button>
                     </div>
 
@@ -151,46 +152,57 @@ export default function Profile() {
                         <h2 style={styles.panelTitle}>내 스페이스 정보</h2>
                     </div>
 
-                    {/* 스크롤 처리 및 분리 렌더링 */}
                     <div style={styles.groupList}>
                         {adminGroups.length === 0 && memberSpaces.length === 0 && (
-                            <p style={{ color: '#6B7280', textAlign: 'center', padding: '20px' }}>참여 중인 스페이스가 없습니다.</p>
+                            <p style={{ color: '#6B7280', textAlign: 'center', padding: '40px' }}>참여 중인 스페이스가 없습니다.</p>
                         )}
 
-                        {/* 관리자 그룹 먼저 렌더링 */}
-                        {adminGroups.map((group, idx) => (
-                            <div key={`admin-${group.id}-${idx}`} style={styles.groupCard}>
-                                <div style={styles.groupHeader}>
-                                    <span style={styles.badgeAdmin}>{group.roleLabel}</span>
-                                </div>
-                                <div style={styles.groupBody}>
-                                    <div>
-                                        <h4 style={styles.groupName}>{group.name}</h4>
-                                        <p style={styles.groupDesc}>{group.description}</p>
+                        {/* 💡 내가 관리 중인 그룹 섹션 */}
+                        {adminGroups.length > 0 && (
+                            <div style={styles.subSection}>
+                                <h3 style={styles.subSectionTitle}>👑 내가 관리 중인 그룹</h3>
+                                {adminGroups.map((group, idx) => (
+                                    <div key={`admin-${group.id}-${idx}`} style={styles.groupCard}>
+                                        <div style={styles.groupHeader}>
+                                            <span style={styles.badgeAdmin}>{group.roleLabel}</span>
+                                        </div>
+                                        <div style={styles.groupBody}>
+                                            <div>
+                                                <h4 style={styles.groupName}>{group.name}</h4>
+                                                <p style={styles.groupDesc}>{group.description}</p>
+                                            </div>
+                                            <button style={styles.manageBtn} onClick={() => navigate(`/group/manage/${group.id}`)}>그룹 관리</button>
+                                        </div>
                                     </div>
-                                    <button style={styles.manageBtn} onClick={() => navigate(`/group/manage/${group.id}`)}>그룹 관리</button>
-                                </div>
+                                ))}
                             </div>
-                        ))}
+                        )}
 
-                        {/* 스페이스 멤버 렌더링 */}
-                        {memberSpaces.map((space, idx) => (
-                            <div key={`member-${space.id}-${idx}`} style={styles.groupCard}>
-                                <div style={styles.groupHeader}>
-                                    <span style={styles.badgeMember}>{space.roleLabel}</span>
-                                    {space.code && <span style={styles.spaceCode}>코드: {space.code}</span>}
-                                </div>
-                                <div style={styles.groupBody}>
-                                    <div>
-                                        <h4 style={styles.groupName}>{space.name}</h4>
-                                        <p style={styles.groupDesc}>{space.description}</p>
-                                        <p style={{ fontSize: '11px', color: '#6B7280', marginTop: '4px' }}>관리자: {space.adminName}</p>
+                        {/* 💡 내가 참여 중인 스페이스 섹션 */}
+                        {memberSpaces.length > 0 && (
+                            <div style={styles.subSection}>
+                                <h3 style={styles.subSectionTitle}>🏢 내가 참여 중인 스페이스</h3>
+                                {memberSpaces.map((space, idx) => (
+                                    <div key={`member-${space.id}-${idx}`} style={styles.groupCard}>
+                                        <div style={styles.groupHeader}>
+                                            <span style={styles.badgeMember}>{space.roleLabel}</span>
+                                            {space.code && <span style={styles.spaceCode}>코드: {space.code}</span>}
+                                        </div>
+                                        <div style={styles.groupBody}>
+                                            <div>
+                                                <h4 style={styles.groupName}>{space.name}</h4>
+                                                <p style={styles.groupDesc}>{space.description}</p>
+                                                <p style={styles.adminNameText}>관리자: {space.adminName}</p>
+                                            </div>
+                                            <button style={styles.handoverBtn} onClick={() => handleOpenHandoverModal(space.spaceId)}>인계하기</button>
+                                        </div>
                                     </div>
-                                    <button style={styles.handoverBtn} onClick={() => handleOpenHandoverModal(space.spaceId)}>인계하기</button>
-                                </div>
+                                ))}
                             </div>
-                        ))}
+                        )}
                     </div>
+                    {/* 💡 버튼명 및 라우팅 경로 변경 */}
+                    <button style={styles.joinNewGroupBtn} onClick={() => navigate('/group/create')}>+ 새로운 그룹 생성하기</button>
                 </section>
             </main>
 
@@ -236,7 +248,10 @@ const styles = {
     infoValueBox: { display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#F9FAFB', padding: '12px 16px', borderRadius: '8px' },
     infoIcon: { color: '#9CA3AF', fontSize: '18px' },
     infoText: { fontSize: '14px', color: '#374151' },
-    groupList: { display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, overflowY: 'auto', maxHeight: '500px', paddingRight: '8px' }, // 💡 스크롤 적용
+
+    groupList: { display: 'flex', flexDirection: 'column', gap: '24px', flex: 1, overflowY: 'auto', maxHeight: '500px', paddingRight: '8px' },
+    subSection: { display: 'flex', flexDirection: 'column', gap: '12px' },
+    subSectionTitle: { fontSize: '15px', fontWeight: '700', color: '#374151', paddingBottom: '8px', borderBottom: '1px solid #E5E7EB', marginBottom: '4px' },
     groupCard: { border: '1px solid #E5E7EB', borderRadius: '8px', padding: '20px', backgroundColor: '#F9FAFB' },
     groupHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' },
     badgeAdmin: { backgroundColor: '#DBEAFE', color: '#1D4ED8', fontSize: '10px', fontWeight: '700', padding: '4px 8px', borderRadius: '4px' },
@@ -245,8 +260,10 @@ const styles = {
     groupBody: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
     groupName: { fontSize: '16px', fontWeight: '700', color: '#111827', marginBottom: '4px' },
     groupDesc: { fontSize: '13px', color: '#6B7280' },
+    adminNameText: { fontSize: '11px', color: '#9CA3AF', marginTop: '6px', fontWeight: '500' },
     manageBtn: { backgroundColor: '#EFF6FF', color: '#2563EB', border: '1px solid #DBEAFE', padding: '8px 16px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', fontWeight: '600' },
     handoverBtn: { backgroundColor: '#F0FDF4', color: '#16A34A', border: '1px solid #DCFCE7', padding: '8px 16px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', fontWeight: '600' },
+    joinNewGroupBtn: { marginTop: '24px', width: '100%', padding: '16px', backgroundColor: 'rgba(239, 246, 255, 0.5)', border: '1px dashed #3B82F6', borderRadius: '8px', color: '#3B82F6', fontSize: '14px', cursor: 'pointer', fontWeight: '600', textAlign: 'center' },
 
     modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
     modalContent: { backgroundColor: '#fff', padding: '32px', borderRadius: '12px', width: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' },
