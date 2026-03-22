@@ -1,9 +1,10 @@
 import axios from 'axios';
+import React from 'react';
 
-axios.get(`${import.meta.env.VITE_API_URL}/users`);
+// axios.get(`http://172.18.156.162:8080/api/user`);
 
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL,
+    baseURL: 'http://172.18.147.255:8080/api',
     headers: {
         'Content-Type': 'application/json',
     },
