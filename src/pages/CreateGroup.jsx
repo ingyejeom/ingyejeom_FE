@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../api/api'; 
+import api from '../api/api';
 
 export default function CreateGroup() {
     const navigate = useNavigate();
     const [groupName, setGroupName] = useState('');
     const [tasks, setTasks] = useState([{ id: 1, name: '', email: '' }, { id: 2, name: '', email: '' }]);
-    const [openImmediately, setOpenImmediately] = useState(true);
 
     const handleAddTask = () => setTasks([...tasks, { id: Date.now(), name: '', email: '' }]);
     const handleTaskNameChange = (id, newName) => setTasks(tasks.map(task => task.id === id ? { ...task, name: newName } : task));
@@ -18,11 +17,10 @@ export default function CreateGroup() {
             return;
         }
 
-        // GroupDto.CreateReqDto 형식에 맞게 데이터 가공
         const requestData = {
             groupName: groupName,
             spaces: tasks
-                .filter(task => task.name.trim() !== '') // 업무명이 비어있지 않은 것만 필터링
+                .filter(task => task.name.trim() !== '')
                 .map(task => ({
                     workName: task.name,
                     userEmail: task.email
@@ -30,19 +28,12 @@ export default function CreateGroup() {
         };
 
         try {
-            // 백엔드로 POST 요청 전송
             const response = await api.post('/group', requestData);
-
             alert('그룹이 성공적으로 생성되었습니다!');
 
-            if (openImmediately) {
-                // 성공 시 응답(DefaultDto.CreateResDto)으로 생성된 id가 넘어온다고 가정
-                const newGroupId = response.data.id || '';
-                navigate(`/group/manage/${newGroupId}`); // 생성된 그룹의 스페이스 목록(관리)으로 이동
-            } else {
-                navigate('/'); // 홈으로 이동
-            }
-
+            // 체크박스 없이 무조건 생성된 그룹 관리 페이지로 이동
+            const newGroupId = response.data.id || '';
+            navigate(`/group/manage/${newGroupId}`);
         } catch (error) {
             console.error('그룹 생성 에러:', error);
             alert('그룹 생성에 실패했습니다: ' + (error.response?.data?.message || '알 수 없는 오류'));
@@ -57,7 +48,9 @@ export default function CreateGroup() {
                 </div>
                 <h1 style={styles.headerTitle}>새로운 그룹 (New Group)</h1>
                 <div style={styles.headerRight}>
-                    <div style={styles.profileAvatar} onClick={() => navigate('/profile')}>SD</div>
+                    <div style={styles.profileAvatar} onClick={() => navigate('/profile')}>
+                        <span className="material-icons" style={{ fontSize: '18px' }}>person</span>
+                    </div>
                 </div>
             </header>
 
@@ -91,14 +84,11 @@ export default function CreateGroup() {
                     ))}
                     <div style={styles.divider}></div>
                     <div style={styles.submitArea}>
+                        {/* 체크박스 삭제 */}
                         <button style={styles.submitBtn} onClick={handleSubmit}><span className="material-icons" style={{ fontSize: '20px' }}>rocket_launch</span>인계 그룹 생성하기</button>
-                        <label style={styles.checkboxLabel}>
-                            <input type="checkbox" style={styles.checkbox} checked={openImmediately} onChange={(e) => setOpenImmediately(e.target.checked)} />
-                            생성 후 바로 그룹 열기 (Open immediately)
-                        </label>
                     </div>
                 </section>
-                <div style={styles.footerGuide}><span style={styles.guideText}>도움이 필요하신가요? 가이드 보기</span></div>
+                {/* 푸터 가이드 삭제 */}
             </main>
         </div>
     );
@@ -111,7 +101,7 @@ const styles = {
     backBtn: { fontSize: '24px', color: '#6B7280', background: 'none', border: 'none', cursor: 'pointer' },
     headerTitle: { flex: 2, textAlign: 'center', fontSize: '18px', fontWeight: '700', fontStyle: 'italic', color: '#111827' },
     headerRight: { flex: 1, display: 'flex', justifyContent: 'flex-end' },
-    profileAvatar: { width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #4F46E5 0%, #A855F7 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '14px', cursor: 'pointer' },
+    profileAvatar: { width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #4F46E5 0%, #A855F7 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' },
     mainContainer: { maxWidth: '800px', margin: '40px auto 0' },
     section: { backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '40px' },
     sectionHeader: { borderBottom: '2px solid #4F46E5', paddingBottom: '16px', marginBottom: '32px' },
@@ -129,8 +119,4 @@ const styles = {
     divider: { height: '1px', backgroundColor: '#E5E7EB', margin: '40px 0' },
     submitArea: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' },
     submitBtn: { display: 'flex', alignItems: 'center', gap: '8px', padding: '16px 40px', backgroundColor: '#4F46E5', color: '#FFFFFF', borderRadius: '8px', fontSize: '18px', fontWeight: '700', fontStyle: 'italic', cursor: 'pointer', border: 'none' },
-    checkboxLabel: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#1F2937', cursor: 'pointer' },
-    checkbox: { width: '18px', height: '18px', accentColor: '#4F46E5', cursor: 'pointer' },
-    footerGuide: { textAlign: 'center', marginTop: '32px' },
-    guideText: { fontSize: '14px', color: '#6B7280', textDecoration: 'underline', cursor: 'pointer' }
 };

@@ -320,7 +320,7 @@ export default function Archive() {
                                 {historyList.length > 0 && (
                                     <button style={styles.textBtn} onClick={() => setIsHistoryModalOpen(true)}>+ 이전 인수인계서 ({historyList.length})</button>
                                 )}
-                                <button style={styles.textBtn} onClick={() => navigate('/handover/create')}>+ 새 인수인계서 작성</button>
+                                <button style={styles.textBtn} onClick={() => navigate(`/handover/create?spaceId=${spaceId}`)}>+ 새 인수인계서 작성</button>
                             </div>
                         </div>
                     ) : (
