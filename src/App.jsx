@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Auth from './pages/Auth';
 import Home from './pages/Home';
@@ -11,26 +12,41 @@ import Archive from './pages/Archive';
 import Profile from './pages/Profile';
 import SpaceList from './pages/SpaceList';
 
+// 💡 핵심: 로그인 상태를 검사하는 '보호된 라우트' 래퍼(Wrapper) 컴포넌트
+const ProtectedRoute = ({ children }) => {
+  // 로컬 스토리지에 로그인 기록(loginId)이 있는지 확인합니다.
+  const isLoggedin = localStorage.getItem('loginId');
+
+  // 로그인 기록이 없다면 무조건 로그인 페이지로 튕겨냅니다(Redirect).
+  if (!isLoggedin) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  // 로그인 상태라면 정상적으로 원래 가려던 페이지(children)를 보여줍니다.
+  return children;
+};
+
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* 독립 페이지들 (헤더/레이아웃이 자체적으로 있는 페이지) */}
+        {/* 로그인/회원가입 페이지는 누구나 접근 가능해야 함 */}
         <Route path="/auth" element={<Auth />} />
-        <Route path="/group/create" element={<CreateGroup />} />
-        <Route path="/space/join" element={<JoinSpace />} />
-        <Route path="/space/:spaceId" element={<Space />} />
-        <Route path="/space/:spaceId/archive" element={<Archive />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/group/manage/:groupId" element={<SpaceList />} />
 
-        {/* 💡 인수인계서 라우터 버그 수정 완료 (파라미터 및 view 추가) */}
-        <Route path="/handover/create" element={<Handover />} />
-        <Route path="/handover/view/:id" element={<Handover />} />
-        <Route path="/handover/edit/:id" element={<Handover />} />
+        {/* 💡 로그인해야만 접근할 수 있는 페이지들을 <ProtectedRoute>로 감싸줍니다. */}
+        <Route path="/group/create" element={<ProtectedRoute><CreateGroup /></ProtectedRoute>} />
+        <Route path="/space/join" element={<ProtectedRoute><JoinSpace /></ProtectedRoute>} />
+        <Route path="/space/:spaceId" element={<ProtectedRoute><Space /></ProtectedRoute>} />
+        <Route path="/space/:spaceId/archive" element={<ProtectedRoute><Archive /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/group/manage/:groupId" element={<ProtectedRoute><SpaceList /></ProtectedRoute>} />
 
-        {/* 공통 레이아웃이 적용되는 페이지 (Layout 내부에서 Header 렌더링) */}
-        <Route path="/" element={<Layout />}>
+        <Route path="/handover/create" element={<ProtectedRoute><Handover /></ProtectedRoute>} />
+        <Route path="/handover/view/:id" element={<ProtectedRoute><Handover /></ProtectedRoute>} />
+        <Route path="/handover/edit/:id" element={<ProtectedRoute><Handover /></ProtectedRoute>} />
+
+        {/* 💡 홈 화면(루트) 역시 로그인 검사를 거치도록 Layout을 감싸줍니다. */}
+        <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route index element={<Home />} />
           <Route path="admin" element={<Admin />} />
         </Route>
