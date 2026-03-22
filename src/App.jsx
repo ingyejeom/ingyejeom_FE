@@ -46,7 +46,7 @@ function App() {
         <Route path="/handover/edit/:id" element={<ProtectedRoute><Handover /></ProtectedRoute>} />
 
         {/* 💡 홈 화면(루트) 역시 로그인 검사를 거치도록 Layout을 감싸줍니다. */}
-        <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>}>
+        <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route index element={<Home />} />
           <Route path="admin" element={<Admin />} />
         </Route>
