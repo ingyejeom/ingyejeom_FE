@@ -7,31 +7,24 @@ export default function Space() {
     const navigate = useNavigate();
     const chatEndRef = useRef(null);
 
-    // 상태 관리
     const [currentSpace, setCurrentSpace] = useState({ name: '로딩 중...', department: '' });
-    const [mySpaces, setMySpaces] = useState([]); // 드롭다운용 스페이스 목록
+    const [mySpaces, setMySpaces] = useState([]);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [inputText, setInputText] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [loginId, setLoginId] = useState('SD'); // 프로필 아이콘용
+    const [messages, setMessages] = useState([]);
 
-    // 챗봇 메시지 내역
-    const [messages, setMessages] = useState([
-        { id: 1, sender: 'bot', text: `안녕하세요, 이 스페이스의 AI 어시스턴트입니다.\n현재 업로드된 문서와 인수인계 내역을 바탕으로 답변해 드립니다.\n궁금한 점을 물어보세요.`, time: '시스템' }
-    ]);
-
-    // 스크롤 자동 이동
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    // 초기 데이터 로딩
+    // 스페이스가 바뀔 때마다 실행
     useEffect(() => {
-        // 1. 프로필 이니셜 가져오기
-        const savedId = localStorage.getItem("loginId");
-        if (savedId) setLoginId(savedId.substring(0, 2).toUpperCase());
+        // 다른 스페이스로 넘어갔을 때 이전 채팅 기록 싹 비우고 인사말만 남기기
+        setMessages([
+            { id: 1, sender: 'bot', text: `안녕하세요, 이 스페이스의 AI 어시스턴트입니다.\n현재 업로드된 문서와 인수인계 내역을 바탕으로 답변해 드립니다.\n궁금한 점을 물어보세요.`, time: '시스템' }
+        ]);
 
-        // 2. 현재 스페이스 상세 정보 가져오기
         const fetchCurrentSpace = async () => {
             try {
                 const res = await api.get('/space', { params: { id: spaceId } });
@@ -40,22 +33,18 @@ export default function Space() {
                     department: res.data.groupName || '그룹'
                 });
             } catch (error) {
-                console.error("스페이스 정보 로딩 실패:", error);
-                setCurrentSpace({ name: '스페이스 정보를 불러올 수 없습니다.', department: 'Error' });
+                setCurrentSpace({ name: '정보를 불러올 수 없습니다.', department: 'Error' });
             }
         };
 
-        // 3. 드롭다운 메뉴용 스페이스 목록 가져오기
         const fetchMySpaces = async () => {
             try {
                 const res = await api.get('/userSpace/getDashboardSpaces', { params: { deleted: false } });
-                // 드롭다운에는 내가 참여/관리 중인 목록을 보여줌
                 const spaces = res.data.map(item => ({
-                    id: item.spaceId, // 이동할 spaceId
+                    id: item.spaceId,
                     name: item.workName || item.groupName || '이름 없음'
-                })).filter(space => space.id != null); // spaceId가 있는 것만 필터링
+                })).filter(space => space.id != null);
 
-                // 중복 제거
                 const uniqueSpaces = Array.from(new Set(spaces.map(s => s.id))).map(id => spaces.find(s => s.id === id));
                 setMySpaces(uniqueSpaces);
             } catch (error) {
@@ -63,57 +52,41 @@ export default function Space() {
             }
         };
 
+        // 히스토리 불러오기
+        const fetchChatHistory = async () => {
+            try {
+                const res = await api.get(`/chatbot/history/${spaceId}`);
+                if (res.data && res.data.length > 0) {
+                    const historyMessages = res.data.flatMap(chat => [
+                        { id: `user-${chat.id}`, sender: 'user', text: chat.question, time: '이전 기록' },
+                        { id: `bot-${chat.id}`, sender: 'bot', text: chat.answer, time: '이전 기록', sources: chat.sources }
+                    ]);
+                    setMessages(prev => [prev[0], ...historyMessages]);
+                }
+            } catch (error) {
+                console.error("채팅 내역 로딩 실패:", error);
+            }
+        };
+
         fetchCurrentSpace();
         fetchMySpaces();
         fetchChatHistory();
-    }, [spaceId]);
+    }, [spaceId]); // spaceId가 바뀔 때마다 무조건 재실행!
 
-    // 챗봇 히스토리 불러오기 함수
-    const fetchChatHistory = async () => {
-        try {
-            const res = await api.get(`/chatbot/history/${spaceId}`);
-            if (res.data && res.data.length > 0) {
-                // 백엔드 데이터를 리액트 메시지 형식으로 변환
-                const historyMessages = res.data.flatMap(chat => [
-                    {
-                        id: `user-${chat.id || Date.now() + Math.random()}`,
-                        sender: 'user',
-                        text: chat.question,
-                        time: '이전 기록' // 혹은 실제 시간 데이터가 있다면 연결
-                    },
-                    {
-                        id: `bot-${chat.id || Date.now() + Math.random()}`,
-                        sender: 'bot',
-                        text: chat.answer,
-                        time: '이전 기록'
-                    }
-                ]);
-
-                // 기존 환영 메시지 유지하면서 히스토리 추가
-                setMessages(prev => [prev[0], ...historyMessages]);
-            }
-        } catch (error) {
-            console.error("채팅 내역 로딩 실패:", error);
-        }
-    };
-
-    // 챗봇 메시지 전송 핸들러
     const handleSendMessage = async () => {
         if (!inputText.trim()) return;
 
         const userText = inputText;
         const currentTime = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 
-        // 유저 메시지 화면에 먼저 추가
-        const newUserMsg = { id: Date.now(), sender: 'user', text: userText, time: currentTime };
-        setMessages(prev => [...prev, newUserMsg]);
+        setMessages(prev => [...prev, { id: Date.now(), sender: 'user', text: userText, time: currentTime }]);
         setInputText('');
         setIsLoading(true);
 
         try {
             const response = await api.post('/chatbot', {
                 spaceId: parseInt(spaceId),
-                question: userText 
+                question: userText
             });
 
             const botMsg = {
@@ -121,21 +94,17 @@ export default function Space() {
                 sender: 'bot',
                 text: response.data.answer || response.data.message || response.data || '답변이 완료되었습니다.',
                 time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-                // referenceFile: response.data.referenceFile // 백엔드에서 출처를 준다면 연결 가능
+                sources: response.data.sources
             };
             setMessages(prev => [...prev, botMsg]);
 
         } catch (error) {
-            console.error('챗봇 응답 에러:', error);
-
-            // 서버 에러 시 표시할 임시 안내 메시지
-            const errorMsg = {
+            setMessages(prev => [...prev, {
                 id: Date.now() + 1,
                 sender: 'bot',
                 text: `⚠️ 챗봇 서버와 연결할 수 없습니다.\n[전송한 질문: ${userText}]`,
                 time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
-            };
-            setMessages(prev => [...prev, errorMsg]);
+            }]);
         } finally {
             setIsLoading(false);
         }
@@ -163,6 +132,7 @@ export default function Space() {
                         {isDropdownOpen && (
                             <div style={styles.dropdownMenu}>
                                 {mySpaces.map(space => (
+                                    // 클릭 시 드롭다운 닫고 해당 스페이스로 이동
                                     <div key={space.id} style={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); navigate(`/space/${space.id}`); }}>
                                         {space.name}
                                     </div>
@@ -177,8 +147,7 @@ export default function Space() {
                         <span className="material-icons" style={{ fontSize: '18px' }}>folder</span>자료실
                     </button>
                     <div style={styles.profileIcon} onClick={() => navigate('/profile')}>
-                        <span style={{ color: '#fff', fontSize: '12px', fontWeight: '700' }}>{loginId}</span>
-                        <div style={styles.statusDot}></div>
+                        <span className="material-icons" style={{ fontSize: '18px', color: 'white' }}>person</span>
                     </div>
                 </div>
             </header>
@@ -186,7 +155,8 @@ export default function Space() {
             <main style={styles.chatArea}>
                 <div style={styles.chatTitleBox}>
                     <div style={styles.aiIconBox}><span className="material-icons" style={{ color: '#fff' }}>smart_toy</span></div>
-                    <span style={styles.chatTitle}>AI 파일 어시스턴트</span>
+                    {/*  타이틀 '계미나이'로 변경 */}
+                    <span style={styles.chatTitle}>계미나이</span>
                     <span style={styles.badge}>Space Intelligence</span>
                 </div>
                 <div style={styles.messageContainer}>
@@ -194,12 +164,23 @@ export default function Space() {
                         <div key={msg.id} style={msg.sender === 'user' ? styles.userMessageRow : styles.botMessageRow}>
                             {msg.sender === 'bot' && <div style={styles.botAvatar}><span className="material-icons" style={{ color: '#8B5CF6', fontSize: '16px' }}>smart_toy</span></div>}
                             <div style={msg.sender === 'user' ? styles.userBubble : styles.botBubble}>
-                                {msg.sender === 'bot' && <div style={styles.botName}>AI 어시스턴트</div>}
+                                {msg.sender === 'bot' && <div style={styles.botName}>계미나이</div>}
                                 <div style={{ whiteSpace: 'pre-line' }}>{msg.text}</div>
-                                {msg.referenceFile && (
-                                    <div style={styles.referenceBox}>
-                                        <div style={styles.refIcon}><span className="material-icons" style={{ color: '#fff', fontSize: '14px' }}>picture_as_pdf</span></div>
-                                        <div><p style={styles.refName}>{msg.referenceFile.name}</p><p style={styles.refPage}>{msg.referenceFile.page}</p></div>
+
+                                {/* 출처 자료가 있으면 3개까지 노출 */}
+                                {msg.sources && msg.sources.length > 0 && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                                        {msg.sources.slice(0, 3).map((src, index) => (
+                                            <div key={index} style={{ ...styles.referenceBox, marginTop: 0, padding: '8px 12px' }}>
+                                                <div style={styles.refIcon}>
+                                                    <span className="material-icons" style={{ color: '#fff', fontSize: '14px' }}>picture_as_pdf</span>
+                                                </div>
+                                                <div>
+                                                    <p style={styles.refName}>{src.source}</p>
+                                                    {src.page != null && <p style={styles.refPage}>{src.page}쪽</p>}
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
                             </div>
@@ -218,17 +199,17 @@ export default function Space() {
 
             <footer style={styles.inputArea}>
                 <div style={styles.inputWrapper}>
-                    <span className="material-icons" style={styles.inputIcon}>attach_file</span>
+                    {/* 첨부파일(클립) 아이콘 삭제 완료 */}
                     <input style={styles.input} placeholder="스페이스 내 파일에 대해 무엇이든 물어보세요..." value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={handleKeyDown} />
                     <button style={styles.sendBtn} onClick={handleSendMessage}><span className="material-icons" style={{ color: '#fff', fontSize: '18px' }}>arrow_upward</span></button>
                 </div>
-                <p style={styles.inputHelp}>AI는 스페이스 내의 권한이 있는 문서만 참조하여 답변합니다.</p>
+                {/* 멘트 변경 완료 */}
+                <p style={styles.inputHelp}>계미나이는 실수를 할 수 있습니다. 중요한 정보는 파일 원본을 확인해주세요.</p>
             </footer>
         </div>
     );
 }
 
-// --- 인라인 스타일 (기존과 동일하게 유지) ---
 const styles = {
     container: { display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#F8FAFC' },
     header: { height: '64px', backgroundColor: 'rgba(255, 255, 255, 0.95)', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', zIndex: 10 },
@@ -262,9 +243,8 @@ const styles = {
     refName: { fontSize: '13px', fontWeight: '700', color: '#334155' },
     refPage: { fontSize: '11px', color: '#94A3B8' },
     inputArea: { backgroundColor: '#fff', padding: '20px 32px 32px', borderTop: '1px solid #E2E8F0' },
-    inputWrapper: { display: 'flex', alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: '24px', padding: '8px 16px', gap: '12px' },
-    inputIcon: { color: '#94A3B8', cursor: 'pointer' },
+    inputWrapper: { display: 'flex', alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: '24px', padding: '8px 24px', gap: '12px' },
     input: { flex: 1, backgroundColor: 'transparent', border: 'none', fontSize: '14px', outline: 'none', padding: '8px 0' },
     sendBtn: { width: '32px', height: '32px', backgroundColor: '#8B5CF6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' },
-    inputHelp: { textAlign: 'center', fontSize: '10px', color: '#94A3B8', marginTop: '12px' }
+    inputHelp: { textAlign: 'center', fontSize: '12px', color: '#94A3B8', marginTop: '12px' }
 };
