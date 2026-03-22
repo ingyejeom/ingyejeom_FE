@@ -18,7 +18,8 @@ export default function Home() {
         // 2. 내 그룹/스페이스 목록 가져오기 및 가공
         const fetchGroups = async () => {
             try {
-                const response = await api.get('/userSpace/getDashboardSpaces', { params: { deleted: false } });
+                // 💡 관리자와 멤버 목록을 모두 가져오기 위해 /list 사용
+                const response = await api.get('/userSpace/list', { params: { deleted: false } });
 
                 const adminGroupSet = new Set();
                 const processedGroups = [];
@@ -39,13 +40,13 @@ export default function Home() {
                     };
 
                     if (item.role === 'ADMIN') {
-                        // 관리자는 그룹 이름 기준으로 중복 제거
+                        // 관리자는 그룹 이름 기준으로 중복 제거하여 그룹 관리 카드로 생성
                         if (!adminGroupSet.has(item.groupName)) {
                             adminGroupSet.add(item.groupName);
                             processedGroups.push(groupData);
                         }
                     } else {
-                        // 멤버는 참여 중인 모든 스페이스 표시
+                        // 멤버는 참여 중인 개별 스페이스 카드로 생성
                         processedGroups.push(groupData);
                     }
                 });
@@ -82,7 +83,7 @@ export default function Home() {
         <div style={styles.container}>
             <div style={styles.headerSection}>
                 <h1 style={styles.title}>환영합니다, {userName}님!</h1>
-                <p style={styles.subtitle}>인수인계 작업을 관리할 그룹을 선택하세요.</p>
+                <p style={styles.subtitle}>인수인계 작업을 관리할 그룹과 스페이스를 선택하세요.</p>
             </div>
 
             {isLoading ? (
@@ -140,17 +141,17 @@ const styles = {
     iconWrapper: { width: '64px', height: '64px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' },
     icon: { fontSize: '32px' },
     cardTitle: { fontSize: '18px', fontWeight: '700', color: 'var(--text-main)', textAlign: 'center', marginBottom: '4px' },
-    cardSubName: { fontSize: '14px', color: '#4B5563', marginBottom: '16px' },
+    cardSubName: { fontSize: '14px', color: '#4B5563', marginBottom: '16px', textAlign: 'center', wordBreak: 'keep-all' },
     divider: { width: '100%', height: '1px', backgroundColor: '#F3F4F6', margin: '16px 0' },
     cardFooter: { width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-    department: { fontSize: '12px', color: '#9CA3AF' },
+    department: { fontSize: '12px', color: '#9CA3AF', fontWeight: '600' },
     statusBadge: { fontSize: '12px', padding: '4px 8px', borderRadius: '12px', fontWeight: '600' },
     addCard: { backgroundColor: '#F9FAFB', border: '2px dashed #D1D5DB', borderRadius: 'var(--border-radius-md)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', cursor: 'pointer', minHeight: '260px' },
     addIconWrapper: { width: '48px', height: '48px', backgroundColor: '#F3F4F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' },
     addIcon: { fontSize: '30px', color: '#9CA3AF', lineHeight: '1' },
-    addText: { fontSize: '16px', color: '#6B7280' },
+    addText: { fontSize: '16px', color: '#6B7280', fontWeight: '600' },
     bottomHelp: { marginTop: 'auto', textAlign: 'center' },
     helpText: { fontSize: '14px', color: '#6B7280', marginBottom: '8px' },
     helpLinks: { fontSize: '14px', color: 'var(--text-main)' },
-    link: { color: 'var(--primary-color)', cursor: 'pointer', textDecoration: 'underline' }
+    link: { color: 'var(--primary-color)', cursor: 'pointer', textDecoration: 'underline', fontWeight: '500' }
 };
