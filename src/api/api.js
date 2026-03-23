@@ -4,8 +4,8 @@ import axios from 'axios';
 
 const api = axios.create({
     // 테스트용 주소
-    // baseURL: 'http://localhost:8080/api',
-    baseURL: 'http://172.18.147.255:8080/api',
+    baseURL: 'http://localhost:8080/api',
+    // baseURL: 'http://172.18.147.255:8080/api',
 
     // 💡 5초(5000ms) 동안 응답이 없으면 무한 대기하지 않고 에러를 발생시킵니다.
     timeout: 5000,

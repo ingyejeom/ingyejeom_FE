@@ -68,7 +68,7 @@ export default function Profile() {
                     }
                 } else if (role === 'USER') {
                     parsedMembers.push({
-                        id: groupId, spaceId: item.spaceId, name: groupName, description: workName, role: 'member', roleLabel: '워크 스페이스', code: spaceCode, adminName: '확인 필요'
+                        id: groupId, spaceId: item.spaceId, name: groupName, description: workName, role: 'member', roleLabel: '워크 스페이스', code: spaceCode, adminName: item.adminName
                     });
                 }
             });
