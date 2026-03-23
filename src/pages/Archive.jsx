@@ -190,10 +190,13 @@ export default function Archive() {
             const url = window.URL.createObjectURL(new Blob([res.data]));
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', file.name || file.originalFileName); 
+            // 파일명 설정 (한글 파일명 지원)
+            const fileName = file.name || file.originalFileName || 'download';
+            link.setAttribute('download', fileName);
             document.body.appendChild(link);
             link.click();
             link.remove();
+            window.URL.revokeObjectURL(url);
         } catch (e) { alert("다운로드 실패"); }
     };
 
@@ -326,7 +329,7 @@ export default function Archive() {
                     ) : (
                         <div style={styles.emptyCard}>
                             <p style={styles.emptyText}>아직 작성된 인수인계서가 없습니다.</p>
-                            <button style={styles.textBtn} onClick={() => navigate('/handover/create')}>+ 첫 인수인계서 작성하기</button>
+                            <button style={styles.textBtn} onClick={() => navigate(`/handover/create?spaceId=${spaceId}`)}>+ 첫 인수인계서 작성하기</button>
                         </div>
                     )}
                 </div>

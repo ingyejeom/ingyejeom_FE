@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import api from '../api/api';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const MODULE_TYPES = {
     'BASIC_INFO': { icon: '📋', label: '기본 정보' },
@@ -31,8 +33,13 @@ export default function Handover() {
     const [role, setRole] = useState('');
     const [modules, setModules] = useState([]);
 
-    const [metaInfo, setMetaInfo] = useState({ groupName: '그룹', workName: '스페이스', userName: '-', createdAt: null });
+    const [metaInfo, setMetaInfo] = useState({ groupName: '그룹', workName: '스페이스', userName: '-', createdAt: null, spaceId: null });
     const [userSpaceId, setUserSpaceId] = useState(null);
+
+    // PDF 생성 관련 상태
+    const [isSaved, setIsSaved] = useState(!!id); // 기존 문서는 이미 저장됨
+    const [savedHandoverId, setSavedHandoverId] = useState(id ? parseInt(id) : null);
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
     useEffect(() => {
         if (id) {
@@ -47,7 +54,8 @@ export default function Handover() {
                         groupName: data.groupName,
                         workName: data.workName,
                         userName: data.userName,
-                        createdAt: data.createdAt
+                        createdAt: data.createdAt,
+                        spaceId: data.spaceId
                     });
 
                     if (data.text) {
@@ -75,11 +83,11 @@ export default function Handover() {
 
                     if (matchingSpace) {
                         setUserSpaceId(matchingSpace.id); // 올바른 ID 세팅!
-                        setMetaInfo(prev => ({ ...prev, groupName: matchingSpace.groupName, workName: matchingSpace.workName }));
+                        setMetaInfo(prev => ({ ...prev, groupName: matchingSpace.groupName, workName: matchingSpace.workName, spaceId: matchingSpace.spaceId }));
                     } else if (res.data.length > 0) {
                         // 못 찾을 경우 예외처리
                         setUserSpaceId(res.data[0].id);
-                        setMetaInfo(prev => ({ ...prev, groupName: res.data[0].groupName, workName: res.data[0].workName }));
+                        setMetaInfo(prev => ({ ...prev, groupName: res.data[0].groupName, workName: res.data[0].workName, spaceId: res.data[0].spaceId }));
                     }
                 } catch (error) { console.error(error); }
             };
@@ -126,19 +134,155 @@ export default function Handover() {
         const payloadText = JSON.stringify({ modules });
 
         try {
-            if (id) {
-                await api.put('/handover', { id: parseInt(id), title, role, text: payloadText });
-                alert('저장되었습니다.');
-                navigate(-1);
+            if (id || savedHandoverId) {
+                // 수정 모드: 기존 문서 업데이트
+                const handoverId = savedHandoverId || parseInt(id);
+                await api.put('/handover', { id: handoverId, title, role, text: payloadText });
+                alert('저장되었습니다. PDF를 생성하려면 "PDF 생성" 버튼을 클릭하세요.');
+                setIsSaved(true);
             } else {
-                if (!userSpaceId) { alert('스페이스 정보를 찾을 수 없습니다.'); return; }
-                await api.post('/handover', { title, role, text: payloadText, userSpaceId });
-                alert('생성되었습니다.');
-                navigate(-1);
+                // 생성 모드: spaceId로 새 문서 생성 (새 API 사용)
+                if (!targetSpaceId) { alert('스페이스 정보를 찾을 수 없습니다.'); return; }
+                const res = await api.post('/handover/bySpace', { title, role, text: payloadText, spaceId: parseInt(targetSpaceId) });
+                const newId = res.data?.id;
+                if (newId) {
+                    setSavedHandoverId(newId);
+                }
+                setIsSaved(true);
+                alert('저장되었습니다. PDF를 생성하려면 "PDF 생성" 버튼을 클릭하세요.');
             }
         } catch (error) {
             console.error(error);
             alert('저장에 실패했습니다.');
+        }
+    };
+
+    // PDF 생성용 임시 요소 생성
+    const createPdfContent = () => {
+        const container = document.createElement('div');
+        container.style.cssText = 'position:absolute;left:-9999px;top:0;width:800px;padding:40px;background:#fff;font-family:sans-serif;';
+
+        // 헤더
+        const header = document.createElement('div');
+        header.style.cssText = 'text-align:center;margin-bottom:30px;padding-bottom:20px;border-bottom:2px solid #333;';
+        header.innerHTML = `
+            <h1 style="font-size:28px;font-weight:700;color:#333;margin:0 0 10px 0;word-wrap:break-word;">${title || '인수인계서'}</h1>
+            <p style="font-size:14px;color:#666;margin:0 0 15px 0;">${role || ''} 업무 인수인계서</p>
+            <div style="font-size:12px;color:#888;">
+                <span>작성일: ${metaInfo.createdAt ? metaInfo.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]}</span>
+                <span style="margin-left:20px;">작성자: ${metaInfo.userName || '-'}</span>
+            </div>
+        `;
+        container.appendChild(header);
+
+        // 모듈 내용
+        modules.forEach(module => {
+            const typeInfo = MODULE_TYPES[module.type] || { icon: '📄', label: '모듈' };
+            const moduleDiv = document.createElement('div');
+            moduleDiv.style.cssText = 'margin-bottom:20px;border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;';
+
+            const moduleHeader = document.createElement('div');
+            moduleHeader.style.cssText = 'background:#f8f9fa;padding:12px 15px;font-weight:700;border-bottom:1px solid #e0e0e0;';
+            moduleHeader.textContent = `${typeInfo.icon} ${typeInfo.label}`;
+            moduleDiv.appendChild(moduleHeader);
+
+            const moduleBody = document.createElement('div');
+            moduleBody.style.cssText = 'padding:15px;';
+
+            const data = module.data || {};
+            Object.entries(data).forEach(([key, value]) => {
+                if (value && String(value).trim()) {
+                    const row = document.createElement('div');
+                    row.style.cssText = 'margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #f0f0f0;';
+                    row.innerHTML = `<span style="font-size:11px;color:#888;display:block;margin-bottom:3px;">${key}</span><span style="font-size:13px;color:#333;word-wrap:break-word;">${String(value)}</span>`;
+                    moduleBody.appendChild(row);
+                }
+            });
+
+            moduleDiv.appendChild(moduleBody);
+            container.appendChild(moduleDiv);
+        });
+
+        return container;
+    };
+
+    // PDF 생성 및 업로드 함수
+    const handleGeneratePdf = async () => {
+        if (!isSaved) {
+            alert('먼저 인수인계서를 저장해주세요.');
+            return;
+        }
+
+        setIsGeneratingPdf(true);
+
+        try {
+            // PDF용 임시 요소 생성
+            const pdfContent = createPdfContent();
+            document.body.appendChild(pdfContent);
+
+            // 렌더링 대기
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            // html2canvas로 캡처
+            const canvas = await html2canvas(pdfContent, {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff'
+            });
+
+            // 임시 요소 제거
+            document.body.removeChild(pdfContent);
+
+            const imgData = canvas.toDataURL('image/png');
+            const pageWidth = 210;
+            const pageHeight = 297;
+            const margin = 10;
+            const imgWidth = pageWidth - (margin * 2);
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+            const doc = new jsPDF('p', 'mm', 'a4');
+            let heightLeft = imgHeight;
+            let position = margin;
+
+            doc.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+            heightLeft -= (pageHeight - margin * 2);
+
+            while (heightLeft > 0) {
+                doc.addPage();
+                position = margin - (imgHeight - heightLeft);
+                doc.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+                heightLeft -= (pageHeight - margin * 2);
+            }
+
+            // PDF를 Blob으로 변환
+            const pdfBlob = doc.output('blob');
+            const fileName = `${title || '인수인계서'}_${new Date().toISOString().split('T')[0]}.pdf`;
+            const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+            // spaceId 확인
+            const uploadSpaceId = targetSpaceId || metaInfo.spaceId;
+            if (!uploadSpaceId) {
+                alert('스페이스 정보를 찾을 수 없어 PDF 업로드가 불가합니다.');
+                return;
+            }
+
+            // FormData로 파일 업로드
+            const formData = new FormData();
+            formData.append('file', pdfFile);
+            formData.append('spaceId', uploadSpaceId.toString());
+
+            await api.post('/file', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+                timeout: 0
+            });
+
+            alert('PDF가 생성되어 파일탐색기에 업로드되었습니다.');
+        } catch (error) {
+            console.error('PDF 생성 오류:', error);
+            alert('PDF 생성에 실패했습니다.');
+        } finally {
+            setIsGeneratingPdf(false);
         }
     };
 
@@ -346,12 +490,49 @@ export default function Handover() {
             <header style={styles.header}>
                 <nav style={styles.breadcrumb}>
                     <span style={{ cursor: 'pointer', color: '#3B82F6' }} onClick={() => navigate('/')}>🏠 내 스페이스</span>
-                    <span>&gt;</span><span>{metaInfo.groupName}</span><span>&gt;</span><span>{metaInfo.workName}</span>
+                    <span>&gt;</span>
+                    <span>{metaInfo.groupName}</span>
+                    <span>&gt;</span>
+                    <span
+                        style={{ cursor: 'pointer', color: '#3B82F6' }}
+                        onClick={() => {
+                            const spaceId = targetSpaceId || metaInfo.spaceId;
+                            if (spaceId) {
+                                navigate(`/space/${spaceId}/archive`);
+                            } else {
+                                navigate(-1);
+                            }
+                        }}
+                    >
+                        {metaInfo.workName} (자료실)
+                    </span>
                 </nav>
                 <div style={styles.headerButtons}>
-                    <button style={styles.btnSecondary} onClick={() => window.print()}>🖨️ PDF/인쇄</button>
-                    {!isViewMode && <button style={styles.btnPrimary} onClick={handleSave}>💾 저장하기</button>}
-                    {isViewMode && <button style={styles.btnPrimary} onClick={() => navigate(`/handover/edit/${id}`)}>✏️ 수정하기</button>}
+                    <button style={styles.btnSecondary} onClick={() => window.print()}>🖨️ 인쇄</button>
+                    {!isViewMode && (
+                        <>
+                            <button style={styles.btnPrimary} onClick={handleSave}>💾 저장하기</button>
+                            <button
+                                style={isSaved ? styles.btnPdf : styles.btnPdfDisabled}
+                                onClick={handleGeneratePdf}
+                                disabled={!isSaved || isGeneratingPdf}
+                            >
+                                {isGeneratingPdf ? '⏳ 생성 중...' : '📄 PDF 생성'}
+                            </button>
+                        </>
+                    )}
+                    {isViewMode && (
+                        <>
+                            <button style={styles.btnPrimary} onClick={() => navigate(`/handover/edit/${id}`)}>✏️ 수정하기</button>
+                            <button
+                                style={styles.btnPdf}
+                                onClick={handleGeneratePdf}
+                                disabled={isGeneratingPdf}
+                            >
+                                {isGeneratingPdf ? '⏳ 생성 중...' : '📄 PDF 생성'}
+                            </button>
+                        </>
+                    )}
                 </div>
             </header>
 
@@ -433,13 +614,15 @@ const styles = {
     headerButtons: { display: 'flex', gap: '10px' },
     btnPrimary: { background: '#3B82F6', color: 'white', padding: '8px 20px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' },
     btnSecondary: { background: '#6c757d', color: 'white', padding: '8px 20px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' },
+    btnPdf: { background: '#10B981', color: 'white', padding: '8px 20px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' },
+    btnPdfDisabled: { background: '#9CA3AF', color: 'white', padding: '8px 20px', border: 'none', borderRadius: '6px', cursor: 'not-allowed', fontWeight: '600', opacity: 0.6 },
     mainContainer: { display: 'flex', marginTop: '60px', minHeight: 'calc(100vh - 60px)' },
     sidebar: { width: '250px', background: 'white', borderRight: '1px solid #e0e0e0', padding: '20px', position: 'fixed', top: '60px', left: 0, bottom: 0, overflowY: 'auto' },
     sidebarTitle: { fontSize: '14px', fontWeight: '700', marginBottom: '15px', paddingBottom: '10px', borderBottom: '1px solid #e0e0e0' },
     moduleItem: { padding: '12px 15px', background: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' },
     content: { flex: 1, padding: '30px', maxWidth: '900px' },
     documentHeader: { background: 'white', padding: '40px', borderRadius: '12px', marginBottom: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', textAlign: 'center' },
-    documentTitle: { fontSize: '32px', fontWeight: '700', color: '#333', marginBottom: '10px' },
+    documentTitle: { fontSize: '32px', fontWeight: '700', color: '#333', marginBottom: '10px', wordWrap: 'break-word', overflowWrap: 'break-word' },
     documentSubtitle: { fontSize: '16px', color: '#666', marginBottom: '20px' },
     documentMeta: { display: 'flex', justifyContent: 'center', gap: '30px', fontSize: '13px', color: '#888' },
     titleInput: { fontSize: '28px', fontWeight: '700', color: '#333', border: 'none', borderBottom: '2px solid transparent', background: 'transparent', textAlign: 'center', width: '100%', padding: '5px', marginBottom: '8px', outline: 'none' },
