@@ -39,7 +39,7 @@ function App() {
         <Route path="/space/:spaceId" element={<ProtectedRoute><Space /></ProtectedRoute>} />
         <Route path="/space/:spaceId/archive" element={<ProtectedRoute><Archive /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-        <Route path="/group/manage/:groupId" element={<ProtectedRoute><SpaceList /></ProtectedRoute>} />
+        <Route path="/group/spacelist/:groupId" element={<ProtectedRoute><SpaceList /></ProtectedRoute>} />
 
         <Route path="/handover/create" element={<ProtectedRoute><Handover /></ProtectedRoute>} />
         <Route path="/handover/view/:id" element={<ProtectedRoute><Handover /></ProtectedRoute>} />

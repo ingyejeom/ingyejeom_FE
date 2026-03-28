@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../api/api';
-import Header from '../components/Header'; // 공통 헤더 가져오기
+import Header from '../components/Header';
 
 export default function SpaceList() {
     const navigate = useNavigate();
@@ -15,8 +15,18 @@ export default function SpaceList() {
     useEffect(() => {
         const fetchSpaces = async () => {
             try {
-                const res = await api.get('/space/list', { params: { groupId: groupId, deleted: false } });
-                setSpaces(res.data || []);
+                const res = await api.get('/userSpace/getAdminSpaces', {
+                    params: { groupId: groupId, deleted: false }
+                });
+
+                const formattedSpaces = res.data.map(item => ({
+                    id: item.spaceId, // 스페이스 입장에 필요한 실제 spaceId
+                    workName: item.workName || '이름 없음',
+                    userName: item.userName || '확인 필요',
+                    createdAt: item.createdAt
+                }));
+
+                setSpaces(formattedSpaces);
             } catch (error) {
                 console.error("스페이스 목록 로딩 실패:", error);
             }
@@ -47,7 +57,6 @@ export default function SpaceList() {
 
     return (
         <div style={styles.pageBackground}>
-            {/* 공통 헤더 적용 (뒤로가기 버튼 + 제목) */}
             <Header leftType="back" title="스페이스 관리" />
 
             <main style={styles.mainContainer}>
@@ -57,8 +66,8 @@ export default function SpaceList() {
                         spaces.map(space => (
                             <div key={space.id} style={styles.spaceCard}>
                                 <div style={styles.cardInfo}>
-                                    <h3 style={styles.spaceTitle}>{space.workName || '이름 없음'}</h3>
-                                    <p style={styles.spaceManager}>담당자: {space.userName || '확인 필요'}</p>
+                                    <h3 style={styles.spaceTitle}>{space.workName}</h3>
+                                    <p style={styles.spaceManager}>담당자: {space.userName}</p>
                                     <p style={styles.spaceDate}>생성일: {space.createdAt ? space.createdAt.split('T')[0] : '알 수 없음'}</p>
                                 </div>
                                 <div style={styles.cardActions}>
