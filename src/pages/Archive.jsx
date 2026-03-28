@@ -30,6 +30,10 @@ export default function Archive() {
     const [dragOverTarget, setDragOverTarget] = useState(null); // 현재 드래그가 머물고 있는 타겟 ID
     const [previewData, setPreviewData] = useState(null); // 뷰어에 표시할 데이터 객체
 
+    // --- 인수인계서 PDF 상태 ---
+    const [handoverPdfs, setHandoverPdfs] = useState([]);
+    const [handoverFolderId, setHandoverFolderId] = useState(null);
+
     // 1. 초기 데이터 로드 (스페이스 정보 및 인수인계서)
     useEffect(() => {
         const savedId = localStorage.getItem("loginId");
@@ -71,9 +75,26 @@ export default function Archive() {
             }
         };
 
+        // 인수인계서 PDF 폴더 및 파일 로드
+        const loadHandoverPdfs = async () => {
+            try {
+                const rootRes = await api.get('/file/list', { params: { spaceId, folderId: null } });
+                const folder = rootRes.data.find(item => item.type === 'FOLDER' && item.name === '인수인계서');
+
+                if (folder) {
+                    setHandoverFolderId(folder.id);
+                    const pdfRes = await api.get('/file/list', { params: { spaceId, folderId: folder.id } });
+                    setHandoverPdfs(pdfRes.data.filter(item => item.type === 'FILE') || []);
+                }
+            } catch (error) {
+                console.error('인수인계서 PDF 로딩 에러:', error);
+            }
+        };
+
         fetchSpaceInfo();
         fetchMySpaces();
-        loadHandovers(); 
+        loadHandovers();
+        loadHandoverPdfs();
     }, [spaceId]);
 
     // 2. 파일 목록 별도 로드 (폴더 위치가 바뀔 때마다 실행)
@@ -334,6 +355,35 @@ export default function Archive() {
                     )}
                 </div>
 
+                {/* 인수인계서 PDF 섹션 */}
+                {handoverPdfs.length > 0 && (
+                    <div style={styles.section}>
+                        <div style={styles.sectionHeader}>
+                            <h3 style={styles.sectionTitle}>📄 인수인계서 </h3>
+                            <span style={styles.pdfCount}>{handoverPdfs.length}개 파일</span>
+                        </div>
+                        <div style={styles.pdfGrid}>
+                            {handoverPdfs.map(pdf => (
+                                <div key={pdf.id} style={styles.pdfCard}>
+                                    <div style={styles.pdfIcon}>📑</div>
+                                    <div style={styles.pdfInfo}>
+                                        <h4 style={styles.pdfName} title={pdf.name || pdf.originalFileName}>
+                                            {formatFileName(pdf.name || pdf.originalFileName)}
+                                        </h4>
+                                        <p style={styles.pdfMeta}>
+                                            {(pdf.size / 1024).toFixed(1)} KB • {formatDate(pdf.createdAt)}
+                                        </p>
+                                    </div>
+                                    <div style={styles.pdfActions}>
+                                        <button style={styles.pdfBtn} onClick={() => handlePreview(pdf)}>보기</button>
+                                        <button style={styles.pdfBtn} onClick={() => handleDownload(pdf)}>다운</button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* 파일 탐색기 섹션 */}
                 <div style={styles.section}>
                     <div style={styles.sectionHeader}>
@@ -369,15 +419,16 @@ export default function Archive() {
                         </div>
                     </div>
 
-                    {files.length > 0 ? (
+                    {/* 루트에서 인수인계서 폴더는 별도 섹션에 표시되므로 제외 */}
+                    {files.filter(f => !(currentFolderId === null && f.type === 'FOLDER' && f.name === '인수인계서')).length > 0 ? (
                         <div style={styles.folderGrid}>
-                            {files.map(file => (
+                            {files.filter(f => !(currentFolderId === null && f.type === 'FOLDER' && f.name === '인수인계서')).map(file => (
                                 // 파일/폴더 렌더링 카드 - 드래그 속성 부여
-                                <div 
-                                    key={`${file.type}-${file.id}`} 
-                                    style={{ 
-                                        ...styles.fileCard, 
-                                        ...(dragOverTarget === file.id && file.type === 'FOLDER' ? styles.dragOverCard : {}) 
+                                <div
+                                    key={`${file.type}-${file.id}`}
+                                    style={{
+                                        ...styles.fileCard,
+                                        ...(dragOverTarget === file.id && file.type === 'FOLDER' ? styles.dragOverCard : {})
                                     }}
                                     draggable
                                     onDragStart={(e) => handleDragStart(e, file.id, file.type)}
@@ -465,7 +516,7 @@ export default function Archive() {
                         </div>
                         <div style={styles.previewBody}>
                             {previewData.type === 'image' && <img src={previewData.url} alt="preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />}
-                            {previewData.type === 'pdf' && <iframe src={previewData.url} style={{ width: '100%', height: '60vh', border: 'none' }} title="pdf-viewer" />}
+                            {previewData.type === 'pdf' && <iframe src={`${previewData.url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`} style={{ width: '100%', height: '70vh', border: 'none', backgroundColor: '#fff' }} title="pdf-viewer" />}
                             {previewData.type === 'text' && <div style={styles.textBox}>{previewData.content}</div>}
                         </div>
                     </div>
@@ -510,6 +561,18 @@ const styles = {
     textBtn: { background: 'none', border: 'none', color: '#4F46E5', fontSize: '13px', fontWeight: '600', cursor: 'pointer' },
     emptyCard: { backgroundColor: '#F8FAFC', border: '1px dashed #CBD5E1', borderRadius: '12px', padding: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' },
     emptyText: { fontSize: '14px', color: '#64748B' },
+
+    // 인수인계서 PDF 섹션 스타일
+    pdfCount: { fontSize: '12px', color: '#64748B', backgroundColor: '#EEF2FF', padding: '4px 12px', borderRadius: '12px' },
+    pdfGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' },
+    pdfCard: { backgroundColor: '#fff', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '16px', display: 'flex', alignItems: 'center', gap: '16px', transition: 'box-shadow 0.2s' },
+    pdfIcon: { fontSize: '32px', width: '48px', height: '48px', backgroundColor: '#EEF2FF', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+    pdfInfo: { flex: 1, minWidth: 0 },
+    pdfName: { fontSize: '14px', fontWeight: '600', color: '#1E293B', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+    pdfMeta: { fontSize: '12px', color: '#64748B', margin: '4px 0 0 0' },
+    pdfActions: { display: 'flex', gap: '8px' },
+    pdfBtn: { padding: '8px 16px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' },
+
     folderGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' },
     footer: { textAlign: 'center', padding: '24px', fontSize: '12px', color: '#94A3B8', borderTop: '1px solid #E2E8F0', backgroundColor: '#fff' },
     modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
