@@ -30,10 +30,9 @@ export default function Handover() {
     const isEditMode = location.pathname.includes('/edit') || id != null;
 
     const [title, setTitle] = useState('');
-    const [role, setRole] = useState('');
     const [modules, setModules] = useState([]);
 
-    const [metaInfo, setMetaInfo] = useState({ groupName: '그룹', workName: '스페이스', userName: '-', createdAt: null, spaceId: null });
+    const [metaInfo, setMetaInfo] = useState({ groupId: null, groupName: '그룹', workName: '스페이스', userName: '-', createdAt: null, spaceId: null });
     const [userSpaceId, setUserSpaceId] = useState(null);
 
     // PDF 생성 관련 상태
@@ -49,8 +48,8 @@ export default function Handover() {
                     const data = res.data;
 
                     setTitle(data.title || '');
-                    setRole(data.role || '');
                     setMetaInfo({
+                        groupId: data.groupId,
                         groupName: data.groupName,
                         workName: data.workName,
                         userName: data.userName,
@@ -83,17 +82,26 @@ export default function Handover() {
 
                     if (matchingSpace) {
                         setUserSpaceId(matchingSpace.id); // 올바른 ID 세팅!
-                        setMetaInfo(prev => ({ ...prev, groupName: matchingSpace.groupName, workName: matchingSpace.workName, spaceId: matchingSpace.spaceId }));
+                        setMetaInfo(prev => ({ ...prev, groupId: matchingSpace.groupId, groupName: matchingSpace.groupName, workName: matchingSpace.workName, spaceId: matchingSpace.spaceId }));
                     } else if (res.data.length > 0) {
                         // 못 찾을 경우 예외처리
                         setUserSpaceId(res.data[0].id);
-                        setMetaInfo(prev => ({ ...prev, groupName: res.data[0].groupName, workName: res.data[0].workName, spaceId: res.data[0].spaceId }));
+                        setMetaInfo(prev => ({ ...prev, groupId: res.data[0].groupId, groupName: res.data[0].groupName, workName: res.data[0].workName, spaceId: res.data[0].spaceId }));
                     }
                 } catch (error) { console.error(error); }
             };
             fetchUserSpace();
         }
     }, [id, targetSpaceId]);
+
+    // 새 문서 생성 시 기본 제목 자동 생성: 그룹_스페이스_인수인계서_날짜
+    useEffect(() => {
+        if (!id && metaInfo.groupName !== '그룹' && metaInfo.workName !== '스페이스' && !title) {
+            const today = new Date().toISOString().split('T')[0];
+            const defaultTitle = `${metaInfo.groupName}_${metaInfo.workName}_인수인계서_${today}`;
+            setTitle(defaultTitle);
+        }
+    }, [id, metaInfo.groupName, metaInfo.workName]);
 
     const addModule = (type) => {
         const newModule = {
@@ -137,13 +145,13 @@ export default function Handover() {
             if (id || savedHandoverId) {
                 // 수정 모드: 기존 문서 업데이트
                 const handoverId = savedHandoverId || parseInt(id);
-                await api.put('/handover', { id: handoverId, title, role, text: payloadText });
+                await api.put('/handover', { id: handoverId, title, text: payloadText });
                 alert('저장되었습니다. PDF를 생성하려면 "PDF 생성" 버튼을 클릭하세요.');
                 setIsSaved(true);
             } else {
                 // 생성 모드: spaceId로 새 문서 생성 (새 API 사용)
                 if (!targetSpaceId) { alert('스페이스 정보를 찾을 수 없습니다.'); return; }
-                const res = await api.post('/handover/bySpace', { title, role, text: payloadText, spaceId: parseInt(targetSpaceId) });
+                const res = await api.post('/handover/bySpace', { title, text: payloadText, spaceId: parseInt(targetSpaceId) });
                 const newId = res.data?.id;
                 if (newId) {
                     setSavedHandoverId(newId);
@@ -166,8 +174,7 @@ export default function Handover() {
         const header = document.createElement('div');
         header.style.cssText = 'text-align:center;margin-bottom:30px;padding-bottom:20px;border-bottom:2px solid #333;';
         header.innerHTML = `
-            <h1 style="font-size:28px;font-weight:700;color:#333;margin:0 0 10px 0;word-wrap:break-word;">${title || '인수인계서'}</h1>
-            <p style="font-size:14px;color:#666;margin:0 0 15px 0;">${role || ''} 업무 인수인계서</p>
+            <h1 style="font-size:28px;font-weight:700;color:#333;margin:0 0 15px 0;word-wrap:break-word;">${title || '인수인계서'}</h1>
             <div style="font-size:12px;color:#888;">
                 <span>작성일: ${metaInfo.createdAt ? metaInfo.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]}</span>
                 <span style="margin-left:20px;">작성자: ${metaInfo.userName || '-'}</span>
@@ -267,17 +274,46 @@ export default function Handover() {
                 return;
             }
 
-            // FormData로 파일 업로드
+            // "인수인계서" 폴더 찾기 또는 생성
+            let handoverFolderId = null;
+            try {
+                const folderRes = await api.get('/file/list', { params: { spaceId: uploadSpaceId, folderId: null } });
+                const existingFolder = folderRes.data.find(item => item.type === 'FOLDER' && item.name === '인수인계서');
+
+                if (existingFolder) {
+                    handoverFolderId = existingFolder.id;
+                } else {
+                    // 폴더가 없으면 생성
+                    const createRes = await api.post('/file/folder', {
+                        spaceId: parseInt(uploadSpaceId),
+                        parentId: null,
+                        name: '인수인계서'
+                    });
+                    // 폴더 생성 후 다시 목록 조회하여 ID 가져오기
+                    const newFolderRes = await api.get('/file/list', { params: { spaceId: uploadSpaceId, folderId: null } });
+                    const newFolder = newFolderRes.data.find(item => item.type === 'FOLDER' && item.name === '인수인계서');
+                    if (newFolder) {
+                        handoverFolderId = newFolder.id;
+                    }
+                }
+            } catch (folderError) {
+                console.error('폴더 처리 오류:', folderError);
+            }
+
+            // FormData로 파일 업로드 (인수인계서 폴더에)
             const formData = new FormData();
             formData.append('file', pdfFile);
             formData.append('spaceId', uploadSpaceId.toString());
+            if (handoverFolderId) {
+                formData.append('folderId', handoverFolderId.toString());
+            }
 
             await api.post('/file', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
                 timeout: 0
             });
 
-            alert('PDF가 생성되어 파일탐색기에 업로드되었습니다.');
+            alert('PDF가 생성되어 인수인계서 폴더에 저장되었습니다.');
         } catch (error) {
             console.error('PDF 생성 오류:', error);
             alert('PDF 생성에 실패했습니다.');
@@ -287,6 +323,23 @@ export default function Handover() {
     };
 
     const getModuleTypeInfo = (type) => MODULE_TYPES[type] || { icon: '📄', label: '모듈' };
+
+    // Module color mapping for visual distinction
+    const getModuleColor = (type) => {
+        const colors = {
+            'BASIC_INFO': '#3B82F6',      // Blue
+            'ACCOUNT_ACCESS': '#8B5CF6',   // Purple
+            'TASK': '#10B981',             // Green
+            'ASSET': '#F59E0B',            // Amber
+            'BUDGET': '#EC4899',           // Pink
+            'DOCUMENT_CONTACT': '#6366F1', // Indigo
+            'RISK': '#EF4444',             // Red
+            'STAKEHOLDER': '#14B8A6',      // Teal
+            'DECISION_HISTORY': '#F97316', // Orange
+            'FREE_NOTE': '#6B7280'         // Gray
+        };
+        return colors[type] || '#6B7280';
+    };
 
     // ==========================================
     // [View Mode] 렌더링 함수
@@ -354,35 +407,60 @@ export default function Handover() {
                 </div>
             );
             case 'TASK': return (
-                <div style={styles.formGrid}>
-                    <div style={full}><label style={styles.label}>업무명</label><input style={styles.input} value={data.taskName || ''} onChange={(e) => handleChange('taskName', e)} /></div>
-                    <div style={styles.formRow}><label style={styles.label}>업무 유형</label>
-                        <select style={styles.input} value={data.taskType || ''} onChange={(e) => handleChange('taskType', e)}><option value="">선택</option><option value="ROUTINE">정기 루틴</option><option value="EVENT">비정기 이벤트</option><option value="PROJECT">일회성 프로젝트</option></select>
+                <>
+                    {/* 기본 정보 섹션 */}
+                    <div style={styles.sectionGroup}>
+                        <div style={styles.sectionTitle}>기본 정보</div>
+                        <div style={styles.formGrid}>
+                            <div style={full}><label style={styles.label}>업무명</label><input style={styles.input} value={data.taskName || ''} onChange={(e) => handleChange('taskName', e)} /></div>
+                            <div style={styles.formRow}><label style={styles.label}>업무 유형</label>
+                                <select style={styles.input} value={data.taskType || ''} onChange={(e) => handleChange('taskType', e)}><option value="">선택</option><option value="ROUTINE">정기 루틴</option><option value="EVENT">비정기 이벤트</option><option value="PROJECT">일회성 프로젝트</option></select>
+                            </div>
+                            <div style={styles.formRow}><label style={styles.label}>중요도</label>
+                                <select style={styles.input} value={data.importance || ''} onChange={(e) => handleChange('importance', e)}><option value="">선택</option><option value="CRITICAL">🔥 Critical</option><option value="HIGH">High</option><option value="MEDIUM">Medium</option><option value="LOW">Low</option></select>
+                            </div>
+                            <div style={styles.formRow}><label style={styles.label}>수행 주기/시점</label><input style={styles.input} value={data.schedule || ''} onChange={(e) => handleChange('schedule', e)} /></div>
+                            <div style={styles.formRow}><label style={styles.label}>소요 시간</label><input style={styles.input} value={data.duration || ''} onChange={(e) => handleChange('duration', e)} /></div>
+                        </div>
                     </div>
-                    <div style={styles.formRow}><label style={styles.label}>중요도</label>
-                        <select style={styles.input} value={data.importance || ''} onChange={(e) => handleChange('importance', e)}><option value="">선택</option><option value="CRITICAL">🔥 Critical</option><option value="HIGH">High</option><option value="MEDIUM">Medium</option><option value="LOW">Low</option></select>
+
+                    {/* 업무 상세 섹션 */}
+                    <div style={styles.sectionGroup}>
+                        <div style={styles.sectionTitle}>업무 상세</div>
+                        <div style={styles.formGrid}>
+                            <div style={full}><label style={styles.label}>선행 업무</label><input style={styles.input} value={data.prerequisiteTask || ''} onChange={(e) => handleChange('prerequisiteTask', e)} /></div>
+                            <div style={full}><label style={styles.label}>필요 도구/환경</label><input style={styles.input} value={data.requiredTools || ''} onChange={(e) => handleChange('requiredTools', e)} /></div>
+                            <div style={full}><label style={styles.label}>상세 절차 (Step)</label><textarea style={styles.textarea} value={data.procedure || ''} onChange={(e) => handleChange('procedure', e)} /></div>
+                            <div style={full}><label style={styles.label}>산출물 (Output)</label><input style={styles.input} value={data.output || ''} onChange={(e) => handleChange('output', e)} /></div>
+                            <div style={full}><label style={styles.label}>검증 기준</label><textarea style={styles.textarea} value={data.verificationCriteria || ''} onChange={(e) => handleChange('verificationCriteria', e)} /></div>
+                            <div style={full}><label style={styles.label}>트러블슈팅</label><textarea style={styles.textarea} value={data.troubleshooting || ''} onChange={(e) => handleChange('troubleshooting', e)} /></div>
+                        </div>
                     </div>
-                    <div style={styles.formRow}><label style={styles.label}>수행 주기/시점</label><input style={styles.input} value={data.schedule || ''} onChange={(e) => handleChange('schedule', e)} /></div>
-                    <div style={styles.formRow}><label style={styles.label}>소요 시간</label><input style={styles.input} value={data.duration || ''} onChange={(e) => handleChange('duration', e)} /></div>
-                    <div style={full}><label style={styles.label}>선행 업무</label><input style={styles.input} value={data.prerequisiteTask || ''} onChange={(e) => handleChange('prerequisiteTask', e)} /></div>
-                    <div style={full}><label style={styles.label}>필요 도구/환경</label><input style={styles.input} value={data.requiredTools || ''} onChange={(e) => handleChange('requiredTools', e)} /></div>
-                    <div style={full}><label style={styles.label}>상세 절차 (Step)</label><textarea style={styles.textarea} value={data.procedure || ''} onChange={(e) => handleChange('procedure', e)} /></div>
-                    <div style={full}><label style={styles.label}>산출물 (Output)</label><input style={styles.input} value={data.output || ''} onChange={(e) => handleChange('output', e)} /></div>
-                    <div style={full}><label style={styles.label}>검증 기준</label><textarea style={styles.textarea} value={data.verificationCriteria || ''} onChange={(e) => handleChange('verificationCriteria', e)} /></div>
-                    <div style={full}><label style={styles.label}>트러블슈팅</label><textarea style={styles.textarea} value={data.troubleshooting || ''} onChange={(e) => handleChange('troubleshooting', e)} /></div>
-                    <hr style={styles.divider} />
-                    <div style={full}><label style={styles.label}>현재 상태</label>
-                        <select style={styles.input} value={data.status || ''} onChange={(e) => handleChange('status', e)}><option value="">선택</option><option value="NORMAL">✅ 정상 운영</option><option value="ISSUE">⚠️ 이슈 있음</option><option value="PAUSED">⏸️ 일시 중단</option><option value="HANDOVER">🔄 인계 중</option></select>
+
+                    {/* 현재 상태 섹션 */}
+                    <div style={styles.sectionGroup}>
+                        <div style={styles.sectionTitle}>현재 상태</div>
+                        <div style={styles.formGrid}>
+                            <div style={full}><label style={styles.label}>상태</label>
+                                <select style={styles.input} value={data.status || ''} onChange={(e) => handleChange('status', e)}><option value="">선택</option><option value="NORMAL">✅ 정상 운영</option><option value="ISSUE">⚠️ 이슈 있음</option><option value="PAUSED">⏸️ 일시 중단</option><option value="HANDOVER">🔄 인계 중</option></select>
+                            </div>
+                            <div style={styles.formRow}><label style={styles.label}>최근 수행일</label><input type="date" style={styles.input} value={data.lastExecutionDate || ''} onChange={(e) => handleChange('lastExecutionDate', e)} /></div>
+                            <div style={styles.formRow}><label style={styles.label}>차기 수행일</label><input type="date" style={styles.input} value={data.nextExecutionDate || ''} onChange={(e) => handleChange('nextExecutionDate', e)} /></div>
+                            <div style={full}><label style={styles.label}>미결 사항</label><textarea style={styles.textarea} value={data.pendingIssues || ''} onChange={(e) => handleChange('pendingIssues', e)} /></div>
+                        </div>
                     </div>
-                    <div style={styles.formRow}><label style={styles.label}>최근 수행일</label><input type="date" style={styles.input} value={data.lastExecutionDate || ''} onChange={(e) => handleChange('lastExecutionDate', e)} /></div>
-                    <div style={styles.formRow}><label style={styles.label}>차기 수행일</label><input type="date" style={styles.input} value={data.nextExecutionDate || ''} onChange={(e) => handleChange('nextExecutionDate', e)} /></div>
-                    <div style={full}><label style={styles.label}>미결 사항</label><textarea style={styles.textarea} value={data.pendingIssues || ''} onChange={(e) => handleChange('pendingIssues', e)} /></div>
-                    <hr style={styles.divider} />
-                    <div style={full}><label style={styles.label}>관련 문서 링크</label><input style={styles.input} value={data.relatedDocLinks || ''} onChange={(e) => handleChange('relatedDocLinks', e)} /></div>
-                    <div style={styles.formRow}><label style={styles.label}>사용 계정</label><input style={styles.input} value={data.relatedAccount || ''} onChange={(e) => handleChange('relatedAccount', e)} /></div>
-                    <div style={styles.formRow}><label style={styles.label}>관련 담당자</label><input style={styles.input} value={data.relatedContact || ''} onChange={(e) => handleChange('relatedContact', e)} /></div>
-                    <div style={full}><label style={styles.label}>참고 레퍼런스</label><input style={styles.input} value={data.referenceLinks || ''} onChange={(e) => handleChange('referenceLinks', e)} /></div>
-                </div>
+
+                    {/* 관련 정보 섹션 */}
+                    <div style={{ ...styles.sectionGroup, borderBottom: 'none', marginBottom: 0, paddingBottom: 0 }}>
+                        <div style={styles.sectionTitle}>관련 정보</div>
+                        <div style={styles.formGrid}>
+                            <div style={full}><label style={styles.label}>관련 문서 링크</label><input style={styles.input} value={data.relatedDocLinks || ''} onChange={(e) => handleChange('relatedDocLinks', e)} /></div>
+                            <div style={styles.formRow}><label style={styles.label}>사용 계정</label><input style={styles.input} value={data.relatedAccount || ''} onChange={(e) => handleChange('relatedAccount', e)} /></div>
+                            <div style={styles.formRow}><label style={styles.label}>관련 담당자</label><input style={styles.input} value={data.relatedContact || ''} onChange={(e) => handleChange('relatedContact', e)} /></div>
+                            <div style={full}><label style={styles.label}>참고 레퍼런스</label><input style={styles.input} value={data.referenceLinks || ''} onChange={(e) => handleChange('referenceLinks', e)} /></div>
+                        </div>
+                    </div>
+                </>
             );
             case 'ASSET': return (
                 <div style={styles.formGrid}>
@@ -491,7 +569,16 @@ export default function Handover() {
                 <nav style={styles.breadcrumb}>
                     <span style={{ cursor: 'pointer', color: '#3B82F6' }} onClick={() => navigate('/')}>🏠 내 스페이스</span>
                     <span>&gt;</span>
-                    <span>{metaInfo.groupName}</span>
+                    <span
+                        style={{ cursor: 'pointer', color: '#3B82F6' }}
+                        onClick={() => {
+                            if (metaInfo.groupId) {
+                                navigate(`/group/manage/${metaInfo.groupId}`);
+                            }
+                        }}
+                    >
+                        {metaInfo.groupName}
+                    </span>
                     <span>&gt;</span>
                     <span
                         style={{ cursor: 'pointer', color: '#3B82F6' }}
@@ -508,7 +595,6 @@ export default function Handover() {
                     </span>
                 </nav>
                 <div style={styles.headerButtons}>
-                    <button style={styles.btnSecondary} onClick={() => window.print()}>🖨️ 인쇄</button>
                     {!isViewMode && (
                         <>
                             <button style={styles.btnPrimary} onClick={handleSave}>💾 저장하기</button>
@@ -523,7 +609,7 @@ export default function Handover() {
                     )}
                     {isViewMode && (
                         <>
-                            <button style={styles.btnPrimary} onClick={() => navigate(`/handover/edit/${id}`)}>✏️ 수정하기</button>
+                            <button style={styles.btnSecondary} onClick={() => window.print()}>🖨️ 인쇄</button>
                             <button
                                 style={styles.btnPdf}
                                 onClick={handleGeneratePdf}
@@ -554,17 +640,13 @@ export default function Handover() {
                         {isViewMode ? (
                             <>
                                 <h1 style={styles.documentTitle}>{title || '제목 없음'}</h1>
-                                <p style={styles.documentSubtitle}>{role} 업무 인수인계서</p>
                                 <div style={styles.documentMeta}>
                                     <span>📅 작성일: {metaInfo.createdAt ? metaInfo.createdAt.split('T')[0] : '-'}</span>
                                     <span>👤 작성자: {metaInfo.userName}</span>
                                 </div>
                             </>
                         ) : (
-                            <>
-                                <input style={styles.titleInput} placeholder="인수인계서 제목을 입력하세요" value={title} onChange={e => setTitle(e.target.value)} />
-                                <input style={styles.roleInput} placeholder="역할명 (예: 총무, 회장)" value={role} onChange={e => setRole(e.target.value)} />
-                            </>
+                            <input style={styles.titleInput} placeholder="인수인계서 제목을 입력하세요" value={title} onChange={e => setTitle(e.target.value)} />
                         )}
                     </div>
 
@@ -575,28 +657,50 @@ export default function Handover() {
 
                         {modules.map((module, index) => {
                             const typeInfo = getModuleTypeInfo(module.type);
+                            const moduleColor = getModuleColor(module.type);
                             return (
-                                <div key={module.id} style={styles.moduleCard}>
-                                    <div style={styles.moduleHeader}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                            <span style={{ fontSize: '20px' }}>{typeInfo.icon}</span>
-                                            <span style={{ fontWeight: '700' }}>{typeInfo.label}</span>
+                                <div key={module.id} style={{ marginTop: index === 0 ? '0' : '28px' }}>
+                                    {/* Separator between modules */}
+                                    {index > 0 && (
+                                        <div style={styles.moduleSeparator}>
+                                            <div style={styles.separatorDot}></div>
+                                            <div style={styles.separatorLine}></div>
+                                            <div style={styles.separatorDot}></div>
                                         </div>
-                                        {!isViewMode && (
-                                            <div style={{ display: 'flex', gap: '5px' }}>
-                                                <button style={styles.iconBtn} onClick={() => moveModule(index, 'UP')}>▲</button>
-                                                <button style={styles.iconBtn} onClick={() => moveModule(index, 'DOWN')}>▼</button>
-                                                <button style={styles.iconBtn} onClick={() => toggleModule(module.id)}>{module.collapsed ? '펼치기' : '접기'}</button>
-                                                <button style={{ ...styles.iconBtn, color: 'red' }} onClick={() => removeModule(module.id)}>✕</button>
+                                    )}
+
+                                    <div style={{
+                                        ...styles.moduleCard,
+                                        borderTop: `3px solid ${moduleColor}`
+                                    }}>
+                                        <div style={{
+                                            ...styles.moduleHeader,
+                                            background: `linear-gradient(to right, ${moduleColor}08, #ffffff)`
+                                        }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                <span style={{
+                                                    ...styles.moduleIcon,
+                                                    background: `${moduleColor}15`,
+                                                    border: `1px solid ${moduleColor}30`
+                                                }}>{typeInfo.icon}</span>
+                                                <span style={styles.moduleLabel}>{typeInfo.label}</span>
+                                            </div>
+                                            {!isViewMode && (
+                                                <div style={{ display: 'flex', gap: '6px' }}>
+                                                    <button style={styles.iconBtn} onClick={() => moveModule(index, 'UP')}>▲</button>
+                                                    <button style={styles.iconBtn} onClick={() => moveModule(index, 'DOWN')}>▼</button>
+                                                    <button style={styles.iconBtn} onClick={() => toggleModule(module.id)}>{module.collapsed ? '펼치기' : '접기'}</button>
+                                                    <button style={{ ...styles.iconBtn, color: '#EF4444', borderColor: '#FCA5A5' }} onClick={() => removeModule(module.id)}>✕</button>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {!module.collapsed && (
+                                            <div style={styles.moduleBody}>
+                                                {isViewMode ? renderViewModule(module) : renderEditModule(module)}
                                             </div>
                                         )}
                                     </div>
-
-                                    {!module.collapsed && (
-                                        <div style={styles.moduleBody}>
-                                            {isViewMode ? renderViewModule(module) : renderEditModule(module)}
-                                        </div>
-                                    )}
                                 </div>
                             );
                         })}
@@ -623,26 +727,75 @@ const styles = {
     content: { flex: 1, padding: '30px', maxWidth: '900px' },
     documentHeader: { background: 'white', padding: '40px', borderRadius: '12px', marginBottom: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', textAlign: 'center' },
     documentTitle: { fontSize: '32px', fontWeight: '700', color: '#333', marginBottom: '10px', wordWrap: 'break-word', overflowWrap: 'break-word' },
-    documentSubtitle: { fontSize: '16px', color: '#666', marginBottom: '20px' },
     documentMeta: { display: 'flex', justifyContent: 'center', gap: '30px', fontSize: '13px', color: '#888' },
     titleInput: { fontSize: '28px', fontWeight: '700', color: '#333', border: 'none', borderBottom: '2px solid transparent', background: 'transparent', textAlign: 'center', width: '100%', padding: '5px', marginBottom: '8px', outline: 'none' },
-    roleInput: { fontSize: '14px', color: '#666', border: 'none', borderBottom: '1px solid transparent', background: 'transparent', textAlign: 'center', width: '100%', padding: '5px', outline: 'none' },
     modulesContainer: { minHeight: '200px', paddingBottom: '100px' },
     emptyState: { border: '2px dashed #ccc', borderRadius: '12px', padding: '40px', textAlign: 'center', color: '#999', marginTop: '15px' },
-    moduleCard: { background: 'white', borderRadius: '12px', marginBottom: '15px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', overflow: 'hidden' },
-    moduleHeader: { padding: '15px 20px', background: '#f8f9fa', borderBottom: '1px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-    iconBtn: { background: 'none', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer', padding: '4px 8px', fontSize: '12px', backgroundColor: '#fff' },
-    moduleBody: { padding: '20px' },
-    formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' },
-    formRow: { display: 'flex', flexDirection: 'column', gap: '5px' },
-    label: { fontSize: '12px', fontWeight: '600', color: '#666' },
-    input: { padding: '10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', outline: 'none', backgroundColor: '#fff' },
-    textarea: { padding: '10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', outline: 'none', minHeight: '80px', resize: 'vertical' },
-    divider: { border: 'none', borderTop: '1px dashed #ccc', margin: '15px 0', gridColumn: 'span 2' },
 
-    viewGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' },
-    viewRow: { marginBottom: '15px', paddingBottom: '10px', borderBottom: '1px solid #f0f0f0' },
-    viewLabel: { fontSize: '12px', fontWeight: '600', color: '#888', marginBottom: '5px' },
-    viewValue: { fontSize: '15px', color: '#333' },
-    preText: { whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0, padding: '10px', background: '#f8f9fa', borderRadius: '6px', fontSize: '14px', lineHeight: '1.6' }
+    // Module Separator Styles
+    moduleSeparator: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        padding: '20px 40px',
+        marginBottom: '8px'
+    },
+    separatorLine: {
+        flex: 1,
+        height: '1px',
+        background: 'linear-gradient(90deg, #e5e7eb, #d1d5db 50%, #e5e7eb)'
+    },
+    separatorDot: {
+        width: '6px',
+        height: '6px',
+        borderRadius: '50%',
+        background: '#d1d5db'
+    },
+
+    // Improved Module Card Styles
+    moduleCard: {
+        background: 'white',
+        borderRadius: '12px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+        overflow: 'hidden',
+        border: '1px solid #e5e7eb'
+    },
+    moduleHeader: {
+        padding: '20px 24px',
+        borderBottom: '1px solid #e5e7eb',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+    },
+    moduleIcon: {
+        fontSize: '24px',
+        width: '44px',
+        height: '44px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#f3f4f6',
+        borderRadius: '12px'
+    },
+    moduleLabel: { fontWeight: '700', fontSize: '16px', color: '#111827' },
+    iconBtn: { background: '#fff', border: '1px solid #e5e7eb', borderRadius: '6px', cursor: 'pointer', padding: '6px 10px', fontSize: '12px', transition: 'all 0.2s' },
+    moduleBody: { padding: '28px', background: '#fafbfc' },
+
+    // 섹션 구분용 스타일
+    sectionGroup: { marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid #e5e7eb' },
+    sectionTitle: { fontSize: '13px', fontWeight: '700', color: '#374151', marginBottom: '16px', paddingBottom: '8px', borderBottom: '2px solid #e5e7eb', textTransform: 'uppercase', letterSpacing: '0.5px' },
+
+    formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' },
+    formRow: { display: 'flex', flexDirection: 'column', gap: '6px' },
+    label: { fontSize: '12px', fontWeight: '600', color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.3px' },
+    input: { padding: '12px 14px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '14px', outline: 'none', backgroundColor: '#fff', transition: 'border-color 0.2s' },
+    textarea: { padding: '12px 14px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '14px', outline: 'none', minHeight: '100px', resize: 'vertical', lineHeight: '1.6' },
+    divider: { border: 'none', borderTop: '2px solid #e5e7eb', margin: '24px 0', gridColumn: 'span 2' },
+
+    viewGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' },
+    viewRow: { marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid #e5e7eb' },
+    viewLabel: { fontSize: '11px', fontWeight: '700', color: '#6b7280', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' },
+    viewValue: { fontSize: '15px', color: '#111827', lineHeight: '1.5' },
+    viewCard: { backgroundColor: '#f9fafb', borderRadius: '8px', padding: '16px', marginBottom: '16px', border: '1px solid #e5e7eb' },
+    preText: { whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0, padding: '16px', background: '#f9fafb', borderRadius: '8px', fontSize: '14px', lineHeight: '1.7', border: '1px solid #e5e7eb' }
 };
