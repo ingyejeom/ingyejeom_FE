@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/api';
+import Header from '../components/Header'; // 💡 공통 Header 추가
 
 export default function CreateGroup() {
     const navigate = useNavigate();
@@ -31,7 +32,6 @@ export default function CreateGroup() {
             const response = await api.post('/group', requestData);
             alert('그룹이 성공적으로 생성되었습니다!');
 
-            // 체크박스 없이 무조건 생성된 그룹 관리 페이지로 이동
             const newGroupId = response.data.id || '';
             navigate(`/group/manage/${newGroupId}`);
         } catch (error) {
@@ -42,17 +42,8 @@ export default function CreateGroup() {
 
     return (
         <div style={styles.pageBackground}>
-            <header style={styles.header}>
-                <div style={styles.headerLeft}>
-                    <button style={styles.backBtn} onClick={() => navigate(-1)}>✕</button>
-                </div>
-                <h1 style={styles.headerTitle}>새로운 그룹 (New Group)</h1>
-                <div style={styles.headerRight}>
-                    <div style={styles.profileAvatar} onClick={() => navigate('/profile')}>
-                        <span className="material-icons" style={{ fontSize: '18px' }}>person</span>
-                    </div>
-                </div>
-            </header>
+            {/* 💡 Header 교체 완료 (닫기 모드 적용) */}
+            <Header leftType="close" title="새로운 그룹 (New Group)" />
 
             <main style={styles.mainContainer}>
                 <section style={styles.section}>
@@ -84,11 +75,9 @@ export default function CreateGroup() {
                     ))}
                     <div style={styles.divider}></div>
                     <div style={styles.submitArea}>
-                        {/* 체크박스 삭제 */}
                         <button style={styles.submitBtn} onClick={handleSubmit}><span className="material-icons" style={{ fontSize: '20px' }}>rocket_launch</span>인계 그룹 생성하기</button>
                     </div>
                 </section>
-                {/* 푸터 가이드 삭제 */}
             </main>
         </div>
     );
@@ -96,12 +85,7 @@ export default function CreateGroup() {
 
 const styles = {
     pageBackground: { backgroundColor: '#F3F4F6', minHeight: '100vh', paddingBottom: '60px' },
-    header: { backgroundColor: 'rgba(255, 255, 255, 0.95)', borderBottom: '1px solid #E5E7EB', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 40px', position: 'sticky', top: 0, zIndex: 10 },
-    headerLeft: { flex: 1 },
-    backBtn: { fontSize: '24px', color: '#6B7280', background: 'none', border: 'none', cursor: 'pointer' },
-    headerTitle: { flex: 2, textAlign: 'center', fontSize: '18px', fontWeight: '700', fontStyle: 'italic', color: '#111827' },
-    headerRight: { flex: 1, display: 'flex', justifyContent: 'flex-end' },
-    profileAvatar: { width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #4F46E5 0%, #A855F7 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' },
+    // header 관련 스타일 삭제 완료
     mainContainer: { maxWidth: '800px', margin: '40px auto 0' },
     section: { backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '40px' },
     sectionHeader: { borderBottom: '2px solid #4F46E5', paddingBottom: '16px', marginBottom: '32px' },
