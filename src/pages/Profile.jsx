@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/api';
-import Header from '../components/Header'; // 💡 공통 Header 추가
+import Header from '../components/Header';
 
 export default function Profile() {
     const navigate = useNavigate();
@@ -40,34 +40,47 @@ export default function Profile() {
 
     const loadMySpaces = async () => {
         try {
-            const res = await api.get('/userSpace/getProfileSpaces', { params: { deleted: false } });
-            const data = res.data;
+            
+            // 관리자(ADMIN)로 있는 그룹 가져오기
+            const adminRes = await api.get('/userSpace/getAdminSpaces', { params: { deleted: false } });
+            // 멤버(USER)로 참여 중인 스페이스 가져오기
+            const memberRes = await api.get('/userSpace/getProfileSpaces', { params: { deleted: false } });
 
+            // 멤버 스페이스 데이터 파싱
+            const parsedMembers = memberRes.data.map(item => ({
+                id: item.groupId,
+                spaceId: item.spaceId,
+                name: item.groupName || "그룹없음",
+                description: item.workName || "업무명없음",
+                role: 'member',
+                roleLabel: '워크 스페이스',
+                code: item.spaceCode || "",
+                adminName: item.adminName || '확인 필요'
+            }));
+
+            // 관리자 그룹 데이터 파싱 (그룹명 중복 제거)
             const adminGroupSet = new Map();
             const parsedAdmins = [];
-            const parsedMembers = [];
 
-            data.forEach(item => {
-                const role = item.role;
+            adminRes.data.forEach(item => {
                 const groupName = item.groupName || "그룹없음";
-                const workName = item.workName || "업무명없음";
-                const spaceCode = item.spaceCode || "";
                 const groupId = item.groupId;
 
-                if (role === 'ADMIN') {
-                    if (!adminGroupSet.has(groupName)) {
-                        adminGroupSet.set(groupName, groupId);
-                        parsedAdmins.push({
-                            id: groupId, spaceId: item.spaceId, name: groupName, description: '관리 중인 그룹', role: 'admin', roleLabel: '그룹 관리자', code: spaceCode
-                        });
-                    }
-                } else if (role === 'USER') {
-                    parsedMembers.push({
-                        id: groupId, spaceId: item.spaceId, name: groupName, description: workName, role: 'member', roleLabel: '워크 스페이스', code: spaceCode, adminName: item.adminName
+                if (!adminGroupSet.has(groupName)) {
+                    adminGroupSet.set(groupName, groupId);
+                    parsedAdmins.push({
+                        id: groupId,
+                        spaceId: item.spaceId,
+                        name: groupName,
+                        description: '관리 중인 그룹',
+                        role: 'admin',
+                        roleLabel: '그룹 관리자',
+                        code: item.spaceCode || ""
                     });
                 }
             });
 
+            // 각각의 상태에 분리해서 저장!
             setAdminGroups(parsedAdmins);
             setMemberSpaces(parsedMembers);
         } catch (error) {
@@ -106,7 +119,6 @@ export default function Profile() {
 
     return (
         <div style={styles.pageBackground}>
-            {/* 💡 Header 교체 완료 (뒤로가기 모드, 로그아웃 버튼 삽입) */}
             <Header
                 leftType="back"
                 title="마이 프로필"
@@ -215,8 +227,7 @@ export default function Profile() {
 
 const styles = {
     pageBackground: { backgroundColor: '#F3F4F6', minHeight: '100vh', display: 'flex', flexDirection: 'column' },
-    // header 스타일 삭제 완료
-    logoutBtn: { padding: '8px 16px', backgroundColor: '#FFFFFF', color: '#EF4444', border: '1px solid #EF4444', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }, // 💡 로그아웃 버튼 스타일
+    logoutBtn: { padding: '8px 16px', backgroundColor: '#FFFFFF', color: '#EF4444', border: '1px solid #EF4444', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' },
     editBtn: { padding: '6px 12px', backgroundColor: '#F3F4F6', color: '#374151', borderRadius: '6px', fontSize: '12px', fontWeight: '600', border: '1px solid #D1D5DB', cursor: 'pointer' },
     mainContainer: { flex: 1, maxWidth: '1100px', margin: '40px auto', width: '100%', display: 'flex', gap: '24px', padding: '0 24px' },
     leftPanel: { flex: 1, backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '32px', height: 'fit-content' },
