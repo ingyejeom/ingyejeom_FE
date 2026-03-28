@@ -10,22 +10,16 @@ export default function Home() {
     const [userName, setUserName] = useState('');
 
     useEffect(() => {
-        // 1. 유저 실명 정보 가져오기 (안전망 강화)
         const fetchUserInfo = async () => {
             try {
                 const res = await api.get('/user');
-                // 백엔드에서 name이 누락되었을 경우 아이디(username)라도 띄우도록 처리
-                // const validName = res.data.name || res.data.username || localStorage.getItem("loginId") || '사용자';
-                // setUserName(validName);
                 setUserName(res.data.name);
             } catch (error) {
-                console.error('❌ 유저 정보 로딩 에러 (토큰 만료 혹은 DB 초기화 때문일 수 있습니다):', error);
                 const savedId = localStorage.getItem("loginId");
                 setUserName(savedId || '사용자');
             }
         };
 
-        // 2. 내 그룹/스페이스 목록 가져오기
         const fetchGroups = async () => {
             try {
                 const response = await api.get('/userSpace/getDashboardSpaces', { params: { deleted: false } });
@@ -86,7 +80,14 @@ export default function Home() {
 
     return (
         <div style={styles.pageWrapper}>
-            <Header />
+            {/* 💡 Header에 우측 그룹 생성 버튼만 깔끔하게 전달 */}
+            <Header
+                rightElement={
+                    <button style={styles.createBtn} onClick={() => navigate('/group/create')}>
+                        + 그룹 생성
+                    </button>
+                }
+            />
 
             <div style={styles.container}>
                 <div style={styles.headerSection}>
@@ -135,6 +136,7 @@ export default function Home() {
 const styles = {
     pageWrapper: { display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#F8FAFC' },
     container: { maxWidth: '1280px', margin: '0 auto', padding: '40px', display: 'flex', flexDirection: 'column', flex: 1, width: '100%' },
+    createBtn: { padding: '8px 16px', backgroundColor: '#4F46E5', color: '#FFFFFF', borderRadius: '6px', fontWeight: '600', fontSize: '13px', cursor: 'pointer', border: 'none' }, // 💡 그룹생성 버튼 스타일
     headerSection: { marginBottom: '32px' },
     title: { fontSize: '28px', fontWeight: '700', color: '#111827', marginBottom: '8px' },
     subtitle: { fontSize: '14px', color: '#6B7280' },
