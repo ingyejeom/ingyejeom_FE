@@ -175,7 +175,7 @@ export default function Profile() {
                                                 <h4 style={styles.groupName}>{group.name}</h4>
                                                 <p style={styles.groupDesc}>{group.description}</p>
                                             </div>
-                                            <button style={styles.manageBtn} onClick={() => navigate(`/group/manage/${group.id}`)}>그룹 관리</button>
+                                            <button style={styles.manageBtn} onClick={() => navigate(`/group/spacelist/${group.id}`)}>그룹 관리</button>
                                         </div>
                                     </div>
                                 ))}

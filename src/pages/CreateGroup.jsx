@@ -33,7 +33,7 @@ export default function CreateGroup() {
             alert('그룹이 성공적으로 생성되었습니다!');
 
             const newGroupId = response.data.id || '';
-            navigate(`/group/manage/${newGroupId}`);
+            navigate(`/group/spacelist/${newGroupId}`);
         } catch (error) {
             console.error('그룹 생성 에러:', error);
             alert('그룹 생성에 실패했습니다: ' + (error.response?.data?.message || '알 수 없는 오류'));
