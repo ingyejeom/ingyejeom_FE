@@ -46,13 +46,26 @@ export default function Archive() {
             } catch (error) { console.error(error); }
         };
 
+        // 수정된 부분: 페이징 제한 없이 나의 모든 스페이스 목록을 가져오기
         const fetchMySpaces = async () => {
             try {
-                const res = await api.get('/userSpace/list', { params: { deleted: false } });
-                const spaces = res.data.map(item => ({ id: item.spaceId, name: item.workName || item.groupName })).filter(s => s.id != null);
+                const [adminRes, memberRes] = await Promise.all([
+                    api.get('/userSpace/getAdminSpaces', { params: { deleted: false } }),
+                    api.get('/userSpace/getProfileSpaces', { params: { deleted: false } })
+                ]);
+
+                const allData = [...(adminRes.data || []), ...(memberRes.data || [])];
+
+                const spaces = allData.map(item => ({
+                    id: item.spaceId,
+                    name: item.workName || item.groupName || '이름 없음'
+                })).filter(space => space.id != null);
+
                 const uniqueSpaces = Array.from(new Set(spaces.map(s => s.id))).map(id => spaces.find(s => s.id === id));
                 setMySpaces(uniqueSpaces);
-            } catch (error) { console.error(error); }
+            } catch (error) {
+                console.error("스페이스 목록 로딩 실패:", error);
+            }
         };
 
         const loadHandovers = async () => {
@@ -289,7 +302,7 @@ export default function Archive() {
         </div>
     );
 
-    // 오른쪽: 챗봇 화면으로 돌아가기 버튼 새로 추가!
+    // 오른쪽: 챗봇 화면으로 돌아가기 버튼
     const customHeaderRight = (
         <button style={styles.chatBtn} onClick={() => navigate(`/space/${spaceId}`)}>
             <span className="material-icons" style={{ fontSize: '18px' }}>smart_toy</span>챗봇
@@ -298,7 +311,6 @@ export default function Archive() {
 
     return (
         <div style={styles.pageBackground}>
-            {/* 헤더에 챗봇 버튼 프롭스(customHeaderRight) 전달 */}
             <Header leftContent={customHeaderLeft} title="자료실" rightElement={customHeaderRight} />
 
             <main style={styles.mainContainer}>

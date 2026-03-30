@@ -36,10 +36,17 @@ export default function Space() {
             }
         };
 
+        // 수정된 부분: 페이징 제한 없이 나의 모든 스페이스 목록을 불러오기
         const fetchMySpaces = async () => {
             try {
-                const res = await api.get('/userSpace/getDashboardSpaces', { params: { deleted: false } });
-                const spaces = res.data.map(item => ({
+                const [adminRes, memberRes] = await Promise.all([
+                    api.get('/userSpace/getAdminSpaces', { params: { deleted: false } }),
+                    api.get('/userSpace/getProfileSpaces', { params: { deleted: false } })
+                ]);
+
+                const allData = [...(adminRes.data || []), ...(memberRes.data || [])];
+
+                const spaces = allData.map(item => ({
                     id: item.spaceId,
                     name: item.workName || item.groupName || '이름 없음'
                 })).filter(space => space.id != null);
@@ -53,7 +60,6 @@ export default function Space() {
 
         const fetchChatHistory = async () => {
             try {
-                // 수정된 부분: URL 뒤에 /17 을 붙이는 게 아니라 params 객체에 담아서 넘김
                 const res = await api.get('/chatbot/history', {
                     params: { spaceId: spaceId }
                 });
@@ -116,7 +122,6 @@ export default function Space() {
         if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleSendMessage();
     };
 
-    // 공통 헤더에 넘길 커스텀 요소들
     const customHeaderLeft = (
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={styles.homeIcon} onClick={() => navigate('/')}>
