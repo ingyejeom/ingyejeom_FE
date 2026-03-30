@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/api';
-import Header from '../components/Header'; // 공통 헤더 가져오기
+import Header from '../components/Header';
 
 export default function Archive() {
     const { spaceId } = useParams();
@@ -27,14 +27,14 @@ export default function Archive() {
     const [folderStack, setFolderStack] = useState([{ id: null, name: 'Home' }]);
 
     // --- [추가] 드래그 앤 드롭 및 뷰어 상태 ---
-    const [dragOverTarget, setDragOverTarget] = useState(null); // 현재 드래그가 머물고 있는 타겟 ID
-    const [previewData, setPreviewData] = useState(null); // 뷰어에 표시할 데이터 객체
+    const [dragOverTarget, setDragOverTarget] = useState(null);
+    const [previewData, setPreviewData] = useState(null);
 
     // --- 인수인계서 PDF 상태 ---
     const [handoverPdfs, setHandoverPdfs] = useState([]);
     const [handoverFolderId, setHandoverFolderId] = useState(null);
 
-    // 1. 초기 데이터 로드 (스페이스 정보 및 인수인계서)
+    // 1. 초기 데이터 로드
     useEffect(() => {
         const fetchSpaceInfo = async () => {
             try {
@@ -72,7 +72,6 @@ export default function Archive() {
             }
         };
 
-        // 인수인계서 PDF 폴더 및 파일 로드
         const loadHandoverPdfs = async () => {
             try {
                 const rootRes = await api.get('/file/list', { params: { spaceId, folderId: null } });
@@ -93,7 +92,7 @@ export default function Archive() {
         loadHandoverPdfs();
     }, [spaceId]);
 
-    // 2. 파일 목록 별도 로드 (폴더 위치가 바뀔 때마다 실행)
+    // 2. 파일 목록 별도 로드
     const fetchFiles = async () => {
         if (!spaceId) return;
         try {
@@ -135,7 +134,6 @@ export default function Archive() {
         }
 
         try {
-            // 415 에러 방지용 헤더 & timeout: 0
             await api.post('/file', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
                 timeout: 0
@@ -271,7 +269,7 @@ export default function Archive() {
         return dateString.split('T')[0].replace(/-/g, '.');
     };
 
-    // 💡 공통 헤더에 넘겨줄 커스텀 왼쪽 요소
+    // 왼쪽: 홈 버튼 + 드롭다운
     const customHeaderLeft = (
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={styles.homeIcon} onClick={() => navigate('/')}>
@@ -291,10 +289,17 @@ export default function Archive() {
         </div>
     );
 
+    // 오른쪽: 챗봇 화면으로 돌아가기 버튼 새로 추가!
+    const customHeaderRight = (
+        <button style={styles.chatBtn} onClick={() => navigate(`/space/${spaceId}`)}>
+            <span className="material-icons" style={{ fontSize: '18px' }}>smart_toy</span>챗봇
+        </button>
+    );
+
     return (
         <div style={styles.pageBackground}>
-            {/* 💡 공통 Header 적용 */}
-            <Header leftContent={customHeaderLeft} title="자료실" />
+            {/* 헤더에 챗봇 버튼 프롭스(customHeaderRight) 전달 */}
+            <Header leftContent={customHeaderLeft} title="자료실" rightElement={customHeaderRight} />
 
             <main style={styles.mainContainer}>
                 <div style={styles.titleSection}>
@@ -309,7 +314,7 @@ export default function Archive() {
                     </div>
                     {latestHandover ? (
                         <div style={styles.handoverCard}>
-                            <div style={styles.handoverContent} onClick={() => navigate(`/handover/edit/${latestHandover.id}`)}>
+                            <div style={styles.handoverContent} onClick={() => navigate(`/handover/view/${latestHandover.id}`)}>
                                 <div style={styles.handoverTitleRow}><h4 style={styles.handoverTitle}>{latestHandover.title}</h4><span style={styles.badge}>LATEST</span></div>
                                 <p style={styles.handoverDesc}>{latestHandover.role}</p>
                                 <div style={styles.handoverMeta}>
@@ -366,7 +371,7 @@ export default function Archive() {
                     <div style={styles.sectionHeader}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <h3 style={styles.sectionTitle}>파일 탐색기</h3>
-                            {/* 상위 경로(Breadcrumb) 영역 - 드롭 존으로 활용 */}
+                            {/* 상위 경로(Breadcrumb) 영역 */}
                             <div style={{ display: 'flex', gap: '8px', fontSize: '13px', color: '#64748B' }}>
                                 {folderStack.map((folder, idx) => (
                                     <span key={idx}>
@@ -397,7 +402,6 @@ export default function Archive() {
 
                     {files.filter(f => !(currentFolderId === null && f.type === 'FOLDER' && f.name === '인수인계서')).length > 0 ? (
                         <div style={styles.folderGrid}>
-                            {/* 💡 중복 map, 닫히지 않은 div 에러 완벽 해결 */}
                             {files.filter(f => !(currentFolderId === null && f.type === 'FOLDER' && f.name === '인수인계서')).map(file => (
                                 <div
                                     key={`${file.type}-${file.id}`}
@@ -508,8 +512,12 @@ const styles = {
     dropdownToggle: { display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '4px 8px', borderRadius: '8px' },
     dropdownLabel: { fontSize: '10px', color: '#64748B' },
     dropdownTitle: { fontSize: '14px', fontWeight: '700', color: '#1E293B' },
-    dropdownMenu: { position: 'absolute', top: '100%', left: 0, backgroundColor: '#fff', border: '1px solid #E2E8F0', borderRadius: '8px', width: '200px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', marginTop: '8px', zIndex: 20 },
+    dropdownMenu: { position: 'absolute', top: '100%', left: 0, backgroundColor: '#fff', border: '1px solid #E2E8F0', borderRadius: '8px', width: '200px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', marginTop: '8px', zIndex: 9999 }, // 💡 zIndex 상향 조정
     dropdownItem: { padding: '12px 16px', fontSize: '14px', cursor: 'pointer', borderBottom: '1px solid #F1F5F9' },
+
+    // 챗봇 이동 버튼 스타일
+    chatBtn: { display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', backgroundColor: '#fff', border: '1px solid #E0E7FF', borderRadius: '8px', color: '#4F46E5', fontWeight: '600', fontSize: '13px', cursor: 'pointer' },
+
     mainContainer: { maxWidth: '1000px', margin: '40px auto', flex: 1, width: '100%', padding: '0 20px' },
     titleSection: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' },
     pageTitle: { fontSize: '24px', fontWeight: '700', color: '#0F172A', marginBottom: '8px' },
