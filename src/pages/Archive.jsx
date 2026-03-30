@@ -309,7 +309,7 @@ export default function Archive() {
                     </div>
                     {latestHandover ? (
                         <div style={styles.handoverCard}>
-                            <div style={styles.handoverContent} onClick={() => navigate(`/handover/view/${latestHandover.id}`)}>
+                            <div style={styles.handoverContent} onClick={() => navigate(`/handover/edit/${latestHandover.id}`)}>
                                 <div style={styles.handoverTitleRow}><h4 style={styles.handoverTitle}>{latestHandover.title}</h4><span style={styles.badge}>LATEST</span></div>
                                 <p style={styles.handoverDesc}>{latestHandover.role}</p>
                                 <div style={styles.handoverMeta}>

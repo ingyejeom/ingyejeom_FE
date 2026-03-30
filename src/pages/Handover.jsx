@@ -34,6 +34,7 @@ export default function Handover() {
 
     const [metaInfo, setMetaInfo] = useState({ groupId: null, groupName: '그룹', workName: '스페이스', userName: '-', createdAt: null, spaceId: null });
     const [userSpaceId, setUserSpaceId] = useState(null);
+    const [isEditable, setIsEditable] = useState(false); // 최신 인수인계서 여부
 
     // PDF 생성 관련 상태
     const [isSaved, setIsSaved] = useState(!!id); // 기존 문서는 이미 저장됨
@@ -56,6 +57,7 @@ export default function Handover() {
                         createdAt: data.createdAt,
                         spaceId: data.spaceId
                     });
+                    setIsEditable(data.isEditable === true); // 최신 인수인계서만 수정 가능
 
                     if (data.text) {
                         try {
@@ -609,6 +611,14 @@ export default function Handover() {
                     )}
                     {isViewMode && (
                         <>
+                            {isEditable && (
+                                <button
+                                    style={styles.btnPrimary}
+                                    onClick={handleSave}
+                                >
+                                    💾 저장하기
+                                </button>
+                            )}
                             <button style={styles.btnSecondary} onClick={() => window.print()}>🖨️ 인쇄</button>
                             <button
                                 style={styles.btnPdf}
@@ -697,7 +707,7 @@ export default function Handover() {
 
                                         {!module.collapsed && (
                                             <div style={styles.moduleBody}>
-                                                {isViewMode ? renderViewModule(module) : renderEditModule(module)}
+                                                {(isViewMode && !isEditable) ? renderViewModule(module) : renderEditModule(module)}
                                             </div>
                                         )}
                                     </div>
