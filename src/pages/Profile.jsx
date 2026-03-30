@@ -40,13 +40,9 @@ export default function Profile() {
 
     const loadMySpaces = async () => {
         try {
-            
-            // 관리자(ADMIN)로 있는 그룹 가져오기
-            const adminRes = await api.get('/userSpace/getAdminSpaces', { params: { deleted: false } });
-            // 멤버(USER)로 참여 중인 스페이스 가져오기
             const memberRes = await api.get('/userSpace/getProfileSpaces', { params: { deleted: false } });
+            const adminRes = await api.get('/userSpace/getAdminSpaces', { params: { deleted: false } });
 
-            // 멤버 스페이스 데이터 파싱
             const parsedMembers = memberRes.data.map(item => ({
                 id: item.groupId,
                 spaceId: item.spaceId,
@@ -58,7 +54,6 @@ export default function Profile() {
                 adminName: item.adminName || '확인 필요'
             }));
 
-            // 관리자 그룹 데이터 파싱 (그룹명 중복 제거)
             const adminGroupSet = new Map();
             const parsedAdmins = [];
 
@@ -80,7 +75,6 @@ export default function Profile() {
                 }
             });
 
-            // 각각의 상태에 분리해서 저장!
             setAdminGroups(parsedAdmins);
             setMemberSpaces(parsedMembers);
         } catch (error) {
@@ -157,7 +151,7 @@ export default function Profile() {
                         <h2 style={styles.panelTitle}>내 스페이스 정보</h2>
                     </div>
 
-                    <div style={styles.groupList}>
+                    <div style={styles.groupListContainer}>
                         {adminGroups.length === 0 && memberSpaces.length === 0 && (
                             <p style={{ color: '#6B7280', textAlign: 'center', padding: '40px' }}>참여 중인 스페이스가 없습니다.</p>
                         )}
@@ -165,42 +159,46 @@ export default function Profile() {
                         {adminGroups.length > 0 && (
                             <div style={styles.subSection}>
                                 <h3 style={styles.subSectionTitle}>👑 내가 관리 중인 그룹</h3>
-                                {adminGroups.map((group, idx) => (
-                                    <div key={`admin-${group.id}-${idx}`} style={styles.groupCard}>
-                                        <div style={styles.groupHeader}>
-                                            <span style={styles.badgeAdmin}>{group.roleLabel}</span>
-                                        </div>
-                                        <div style={styles.groupBody}>
-                                            <div>
-                                                <h4 style={styles.groupName}>{group.name}</h4>
-                                                <p style={styles.groupDesc}>{group.description}</p>
+                                <div style={styles.scrollArea}>
+                                    {adminGroups.map((group, idx) => (
+                                        <div key={`admin-${group.id}-${idx}`} style={styles.groupCard}>
+                                            <div style={styles.groupHeader}>
+                                                <span style={styles.badgeAdmin}>{group.roleLabel}</span>
                                             </div>
-                                            <button style={styles.manageBtn} onClick={() => navigate(`/group/spacelist/${group.id}`)}>그룹 관리</button>
+                                            <div style={styles.groupBody}>
+                                                <div>
+                                                    <h4 style={styles.groupName}>{group.name}</h4>
+                                                    <p style={styles.groupDesc}>{group.description}</p>
+                                                </div>
+                                                <button style={styles.manageBtn} onClick={() => navigate(`/group/manage/${group.id}`)}>그룹 관리</button>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))}
+                                </div>
                             </div>
                         )}
 
                         {memberSpaces.length > 0 && (
                             <div style={styles.subSection}>
                                 <h3 style={styles.subSectionTitle}>🏢 내가 참여 중인 스페이스</h3>
-                                {memberSpaces.map((space, idx) => (
-                                    <div key={`member-${space.id}-${idx}`} style={styles.groupCard}>
-                                        <div style={styles.groupHeader}>
-                                            <span style={styles.badgeMember}>{space.roleLabel}</span>
-                                            {space.code && <span style={styles.spaceCode}>코드: {space.code}</span>}
-                                        </div>
-                                        <div style={styles.groupBody}>
-                                            <div>
-                                                <h4 style={styles.groupName}>{space.name}</h4>
-                                                <p style={styles.groupDesc}>{space.description}</p>
-                                                <p style={styles.adminNameText}>관리자: {space.adminName}</p>
+                                <div style={styles.scrollArea}>
+                                    {memberSpaces.map((space, idx) => (
+                                        <div key={`member-${space.id}-${idx}`} style={styles.groupCard}>
+                                            <div style={styles.groupHeader}>
+                                                <span style={styles.badgeMember}>{space.roleLabel}</span>
+                                                {space.code && <span style={styles.spaceCode}>코드: {space.code}</span>}
                                             </div>
-                                            <button style={styles.handoverBtn} onClick={() => handleOpenHandoverModal(space.spaceId)}>인계하기</button>
+                                            <div style={styles.groupBody}>
+                                                <div>
+                                                    <h4 style={styles.groupName}>{space.name}</h4>
+                                                    <p style={styles.groupDesc}>{space.description}</p>
+                                                    <p style={styles.adminNameText}>관리자: {space.adminName}</p>
+                                                </div>
+                                                <button style={styles.handoverBtn} onClick={() => handleOpenHandoverModal(space.spaceId)}>인계하기</button>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -233,7 +231,7 @@ const styles = {
     leftPanel: { flex: 1, backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '32px', height: 'fit-content' },
     rightPanel: { flex: 1.5, backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '32px', display: 'flex', flexDirection: 'column' },
     panelTitleRowSpaceBetween: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' },
-    panelTitleRow: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px' },
+    panelTitleRow: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px', flexShrink: 0 },
     panelTitle: { fontSize: '18px', fontWeight: '700', color: '#111827' },
     profileCard: { display: 'flex', flexDirection: 'column', alignItems: 'center' },
     avatarWrapper: { width: '100px', height: '100px', borderRadius: '50%', border: '4px solid #FFFFFF', outline: '2px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4F6', marginBottom: '16px' },
@@ -246,10 +244,13 @@ const styles = {
     infoIcon: { color: '#9CA3AF', fontSize: '18px' },
     infoText: { fontSize: '14px', color: '#374151' },
 
-    groupList: { display: 'flex', flexDirection: 'column', gap: '24px', flex: 1, overflowY: 'auto', maxHeight: '500px', paddingRight: '8px' },
-    subSection: { display: 'flex', flexDirection: 'column', gap: '12px' },
-    subSectionTitle: { fontSize: '15px', fontWeight: '700', color: '#374151', paddingBottom: '8px', borderBottom: '1px solid #E5E7EB', marginBottom: '4px' },
-    groupCard: { border: '1px solid #E5E7EB', borderRadius: '8px', padding: '20px', backgroundColor: '#F9FAFB' },
+    // 스크롤 분리 관련 주요 스타일
+    groupListContainer: { display: 'flex', flexDirection: 'column', gap: '24px', flex: 1, overflow: 'hidden' },
+    subSection: { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 },
+    subSectionTitle: { fontSize: '15px', fontWeight: '700', color: '#374151', paddingBottom: '8px', borderBottom: '1px solid #E5E7EB', marginBottom: '12px', flexShrink: 0 },
+    scrollArea: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '8px' },
+
+    groupCard: { border: '1px solid #E5E7EB', borderRadius: '8px', padding: '20px', backgroundColor: '#F9FAFB', flexShrink: 0 },
     groupHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' },
     badgeAdmin: { backgroundColor: '#DBEAFE', color: '#1D4ED8', fontSize: '10px', fontWeight: '700', padding: '4px 8px', borderRadius: '4px' },
     badgeMember: { backgroundColor: '#DCFCE7', color: '#15803D', fontSize: '10px', fontWeight: '700', padding: '4px 8px', borderRadius: '4px' },
@@ -260,7 +261,7 @@ const styles = {
     adminNameText: { fontSize: '11px', color: '#9CA3AF', marginTop: '6px', fontWeight: '500' },
     manageBtn: { backgroundColor: '#EFF6FF', color: '#2563EB', border: '1px solid #DBEAFE', padding: '8px 16px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', fontWeight: '600' },
     handoverBtn: { backgroundColor: '#F0FDF4', color: '#16A34A', border: '1px solid #DCFCE7', padding: '8px 16px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', fontWeight: '600' },
-    joinNewGroupBtn: { marginTop: '24px', width: '100%', padding: '16px', backgroundColor: 'rgba(239, 246, 255, 0.5)', border: '1px dashed #3B82F6', borderRadius: '8px', color: '#3B82F6', fontSize: '14px', cursor: 'pointer', fontWeight: '600', textAlign: 'center' },
+    joinNewGroupBtn: { marginTop: '24px', width: '100%', padding: '16px', backgroundColor: 'rgba(239, 246, 255, 0.5)', border: '1px dashed #3B82F6', borderRadius: '8px', color: '#3B82F6', fontSize: '14px', cursor: 'pointer', fontWeight: '600', textAlign: 'center', flexShrink: 0 },
 
     modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
     modalContent: { backgroundColor: '#fff', padding: '32px', borderRadius: '12px', width: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' },
