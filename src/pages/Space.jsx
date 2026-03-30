@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/api';
-import Header from '../components/Header'; // 공통 헤더 가져오기
+import Header from '../components/Header';
 
 export default function Space() {
     const { spaceId } = useParams();
@@ -53,7 +53,11 @@ export default function Space() {
 
         const fetchChatHistory = async () => {
             try {
-                const res = await api.get(`/chatbot/history/${spaceId}`);
+                // 수정된 부분: URL 뒤에 /17 을 붙이는 게 아니라 params 객체에 담아서 넘김
+                const res = await api.get('/chatbot/history', {
+                    params: { spaceId: spaceId }
+                });
+
                 if (res.data && res.data.length > 0) {
                     const historyMessages = res.data.flatMap(chat => [
                         { id: `user-${chat.id}`, sender: 'user', text: chat.question, time: '이전 기록' },
@@ -147,7 +151,6 @@ export default function Space() {
 
     return (
         <div style={styles.container}>
-            {/* 💡 공통 헤더 적용 (가운데 제목은 없이) */}
             <Header leftContent={customHeaderLeft} title="" rightElement={customHeaderRight} />
 
             <main style={styles.chatArea}>
@@ -211,7 +214,7 @@ const styles = {
     dropdownToggle: { display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '4px 8px', borderRadius: '8px' },
     dropdownLabel: { fontSize: '10px', color: '#64748B' },
     dropdownTitle: { fontSize: '14px', fontWeight: '700', color: '#1E293B' },
-    dropdownMenu: { position: 'absolute', top: '100%', left: 0, backgroundColor: '#fff', border: '1px solid #E2E8F0', borderRadius: '8px', width: '200px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', marginTop: '8px', zIndex: 20, maxHeight: '300px', overflowY: 'auto' },
+    dropdownMenu: { position: 'absolute', top: '100%', left: 0, backgroundColor: '#fff', border: '1px solid #E2E8F0', borderRadius: '8px', width: '200px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', marginTop: '8px', zIndex: 9999, maxHeight: '300px', overflowY: 'auto' },
     dropdownItem: { padding: '12px 16px', fontSize: '14px', cursor: 'pointer', borderBottom: '1px solid #F1F5F9' },
     archiveBtn: { display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', backgroundColor: '#fff', border: '1px solid #E0E7FF', borderRadius: '8px', color: '#4F46E5', fontWeight: '600', fontSize: '13px', cursor: 'pointer' },
     chatArea: { flex: 1, display: 'flex', flexDirection: 'column', margin: '24px 32px 0', backgroundColor: '#fff', border: '1px solid #E2E8F0', borderRadius: '12px 12px 0 0', overflow: 'hidden' },
