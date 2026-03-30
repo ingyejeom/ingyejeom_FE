@@ -34,7 +34,7 @@ export default function Home() {
         try {
             // callpage(현재 페이지) 파라미터 전달
             const response = await api.get('/userSpace/getDashboardSpaces', {
-                params: { callpage: page }
+                params: { callPage: page }
             });
 
             const dataList = response.data.list || [];
