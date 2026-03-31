@@ -34,7 +34,6 @@ export default function Handover() {
 
     const [metaInfo, setMetaInfo] = useState({ groupId: null, groupName: '그룹', workName: '스페이스', userName: '-', createdAt: null, spaceId: null });
     const [userSpaceId, setUserSpaceId] = useState(null);
-    const [isEditable, setIsEditable] = useState(false); // 최신 인수인계서 여부
 
     // PDF 생성 관련 상태
     const [isSaved, setIsSaved] = useState(!!id); // 기존 문서는 이미 저장됨
@@ -57,7 +56,6 @@ export default function Handover() {
                         createdAt: data.createdAt,
                         spaceId: data.spaceId
                     });
-                    setIsEditable(data.isEditable === true); // 최신 인수인계서만 수정 가능
 
                     if (data.text) {
                         try {
@@ -229,6 +227,8 @@ export default function Handover() {
             const pdfContent = createPdfContent();
             document.body.appendChild(pdfContent);
 
+            const rawText = pdfContent.innerText;
+
             // 렌더링 대기
             await new Promise(resolve => setTimeout(resolve, 100));
 
@@ -269,6 +269,10 @@ export default function Handover() {
             const fileName = `${title || '인수인계서'}_${new Date().toISOString().split('T')[0]}.pdf`;
             const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
+            // 마크다운(MD) 파일 생성 - 챗봇 근거로 사용하기 위함
+            const textBlob = new Blob([rawText], { type: 'text/markdown' });
+            const mdFile = new File([textBlob], `${title || '인수인계서'}_챗봇학습용.md`, { type: 'text/markdown' });
+
             // spaceId 확인
             const uploadSpaceId = targetSpaceId || metaInfo.spaceId;
             if (!uploadSpaceId) {
@@ -302,6 +306,14 @@ export default function Handover() {
                 console.error('폴더 처리 오류:', folderError);
             }
 
+            const handoverFormData = new FormData();
+            handoverFormData.append('pdfFile', pdfFile); 
+            handoverFormData.append('mdFile', mdFile);   
+            handoverFormData.append('spaceId', uploadSpaceId.toString());
+            if (handoverFolderId) {
+                handoverFormData.append('folderId', handoverFolderId.toString());
+            }
+
             // FormData로 파일 업로드 (인수인계서 폴더에)
             const formData = new FormData();
             formData.append('file', pdfFile);
@@ -310,7 +322,7 @@ export default function Handover() {
                 formData.append('folderId', handoverFolderId.toString());
             }
 
-            await api.post('/file', formData, {
+            await api.post('/handover/save', handoverFormData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
                 timeout: 0
             });
@@ -611,14 +623,6 @@ export default function Handover() {
                     )}
                     {isViewMode && (
                         <>
-                            {isEditable && (
-                                <button
-                                    style={styles.btnPrimary}
-                                    onClick={handleSave}
-                                >
-                                    💾 저장하기
-                                </button>
-                            )}
                             <button style={styles.btnSecondary} onClick={() => window.print()}>🖨️ 인쇄</button>
                             <button
                                 style={styles.btnPdf}
@@ -707,7 +711,7 @@ export default function Handover() {
 
                                         {!module.collapsed && (
                                             <div style={styles.moduleBody}>
-                                                {(isViewMode && !isEditable) ? renderViewModule(module) : renderEditModule(module)}
+                                                {isViewMode ? renderViewModule(module) : renderEditModule(module)}
                                             </div>
                                         )}
                                     </div>

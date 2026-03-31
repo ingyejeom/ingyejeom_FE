@@ -7,8 +7,7 @@ const api = axios.create({
     baseURL: 'http://localhost:8080/api',
     // baseURL: 'http://172.18.147.31:8080/api',
 
-    // 💡 5초(5000ms) 동안 응답이 없으면 무한 대기하지 않고 에러를 발생시킵니다.
-    timeout: 5000,
+    timeout: 300000,
 
     headers: {
         'Content-Type': 'application/json',
