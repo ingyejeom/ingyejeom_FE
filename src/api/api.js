@@ -3,9 +3,7 @@ import axios from 'axios';
 // axios.get(`http://172.18.156.162:8080/api/user`);
 
 const api = axios.create({
-    // 로컬 테스트용 주소
-    baseURL: 'http://localhost:8080/api',
-    // baseURL: 'http://172.18.147.31:8080/api',
+    baseURL: 'https://ingyejeom.cloud/api',
 
     timeout: 300000,
 
