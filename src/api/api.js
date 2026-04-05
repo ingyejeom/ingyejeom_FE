@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-// axios.get(`http://172.18.156.162:8080/api/user`);
+// axios.get(`https://ingyejeom.cloud/api/user`);
 
 const api = axios.create({
     baseURL: 'https://ingyejeom.cloud/api',
