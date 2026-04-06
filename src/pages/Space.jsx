@@ -253,7 +253,7 @@ export default function Space() {
                 <div style={styles.dropdownToggle} onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
                     <div>
                         <p style={styles.dropdownLabel}>현재 공간</p>
-                        <p style={styles.dropdownTitle}>{currentSpace.name} - {currentSpace.department}</p>
+                        <p style={styles.dropdownTitle}>{currentSpace.department} - {currentSpace.name}</p>
                     </div>
                     <span className="material-icons" style={{ color: '#94A3B8' }}>expand_more</span>
                 </div>
