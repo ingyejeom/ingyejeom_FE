@@ -20,8 +20,8 @@ export default function Space() {
     const [messages, setMessages] = useState([]);
 
     const messageContainerRef = useRef(null);
-    const prevScrollHeightRef = useRef(0); // 스크롤 보정용: 이전 높이 기억
-    const isPaginatingRef = useRef(false); // 스크롤 보정용: 페이징 중인지 확인
+    const prevScrollHeightRef = useRef(0);
+    const isPaginatingRef = useRef(false);
 
     const [cursor, setCursor] = useState(null);
     const [hasMore, setHasMore] = useState(true);
@@ -50,7 +50,6 @@ export default function Space() {
             }
         };
 
-        // 수정된 부분: 페이징 제한 없이 나의 모든 스페이스 목록을 불러오기
         const fetchMySpaces = async () => {
             try {
                 const [adminRes, memberRes] = await Promise.all([
@@ -60,9 +59,11 @@ export default function Space() {
 
                 const allData = [...(adminRes.data || []), ...(memberRes.data || [])];
 
+                // 드롭다운 노출을 위해 groupName 추가 파싱
                 const spaces = allData.map(item => ({
                     id: item.spaceId,
-                    name: item.workName || item.groupName || '이름 없음'
+                    name: item.workName || item.groupName || '이름 없음',
+                    groupName: item.groupName || '그룹 없음'
                 })).filter(space => space.id != null);
 
                 const uniqueSpaces = Array.from(new Set(spaces.map(s => s.id))).map(id => spaces.find(s => s.id === id));
@@ -104,15 +105,15 @@ export default function Space() {
             if (res.data && res.data.length > 0) {
                 const newCursor = res.data[0].id;
                 const historyMessages = res.data.flatMap(chat => {
-                    const formattedTime = chat.createdAt 
-                        ? new Date(chat.createdAt).toLocaleString('ko-KR', { 
-                        year: 'numeric', 
-                        month: '2-digit', 
-                        day: '2-digit', 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                    })
-                    : '이전 기록';
+                    const formattedTime = chat.createdAt
+                        ? new Date(chat.createdAt).toLocaleString('ko-KR', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        })
+                        : '이전 기록';
                     return [
                         { id: `user-${chat.id}`, sender: 'user', text: chat.question, time: formattedTime },
                         { id: `bot-${chat.id}`, sender: 'bot', text: chat.answer, time: formattedTime, sources: chat.sources }
@@ -204,24 +205,24 @@ export default function Space() {
     };
 
     const handleSourceClick = async (sourceInfo) => {
-        const targetFile = files.find(f => 
-            f.originalFileName === sourceInfo.source || 
+        const targetFile = files.find(f =>
+            f.originalFileName === sourceInfo.source ||
             f.name === sourceInfo.source ||
             sourceInfo.source.includes(f.originalFileName || f.name)
         );
-        
+
         if (targetFile) {
             try {
                 const res = await api.get(`/file/${targetFile.id}?mode=view`, { responseType: 'blob' });
                 const contentType = res.headers['content-type'] || 'application/pdf';
                 const fileBlob = new Blob([res.data], { type: contentType });
-                
+
                 let url = window.URL.createObjectURL(fileBlob);
-                
+
                 if (sourceInfo.page) {
                     url += `#page=${sourceInfo.page}`;
                 }
-                
+
                 setPreviewUrl(url);
                 setPreviewFile(targetFile);
                 setPreviewPage(sourceInfo.page);
@@ -237,7 +238,7 @@ export default function Space() {
         setPreviewFile(null);
         setPreviewPage(null);
         if (previewUrl) {
-            const cleanUrl = previewUrl.split('#')[0]; 
+            const cleanUrl = previewUrl.split('#')[0];
             URL.revokeObjectURL(cleanUrl);
             setPreviewUrl('');
         }
@@ -260,7 +261,7 @@ export default function Space() {
                     <div style={styles.dropdownMenu}>
                         {mySpaces.map(space => (
                             <div key={space.id} style={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); navigate(`/space/${space.id}`); }}>
-                                {space.name}
+                                {space.groupName} - {space.name}
                             </div>
                         ))}
                     </div>
@@ -286,7 +287,7 @@ export default function Space() {
                     <span style={styles.badge}>Space Intelligence</span>
                 </div>
                 <div style={styles.messageContainer} ref={messageContainerRef} onScroll={handleScroll}>
-                    {isFetchingHistory && <div style={{textAlign: 'center', fontSize: '12px', color: '#94A3B8', padding: '10px 0'}}>과거 대화 불러오는 중...</div>}
+                    {isFetchingHistory && <div style={{ textAlign: 'center', fontSize: '12px', color: '#94A3B8', padding: '10px 0' }}>과거 대화 불러오는 중...</div>}
                     {!hasMore && (
                         <div style={styles.botMessageRow}>
                             <div style={styles.botAvatar}><span className="material-icons" style={{ color: '#8B5CF6', fontSize: '16px' }}>smart_toy</span></div>
@@ -315,7 +316,7 @@ export default function Space() {
                                         {msg.sources.slice(0, 3).map((src, index) => (
                                             <div key={index}
                                                 style={{ ...styles.referenceBox, marginTop: 0, padding: '8px 12px', cursor: 'pointer' }}
-                                                onClick={() => handleSourceClick(src)}>                           
+                                                onClick={() => handleSourceClick(src)}>
                                                 <div style={styles.refIcon}>
                                                     <span className="material-icons" style={{ color: '#fff', fontSize: '14px' }}>picture_as_pdf</span>
                                                 </div>
@@ -358,10 +359,10 @@ export default function Space() {
                             <button style={styles.closeBtn} onClick={closePreview}>✕</button>
                         </div>
                         <div style={styles.previewBody}>
-                            <iframe 
-                                src={previewUrl} 
-                                style={{ width: '100%', height: '70vh', border: 'none', backgroundColor: '#fff' }} 
-                                title="document preview" 
+                            <iframe
+                                src={previewUrl}
+                                style={{ width: '100%', height: '70vh', border: 'none', backgroundColor: '#fff' }}
+                                title="document preview"
                             />
                         </div>
                     </div>
