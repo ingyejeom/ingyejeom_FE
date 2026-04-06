@@ -1,11 +1,11 @@
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Header({ leftType = 'logo', leftContent, title = '내 스페이스', rightElement }) {
     const navigate = useNavigate();
 
-    // 왼쪽 영역 렌더링 (커스텀 요소 / 로고 / 뒤로가기 / 닫기)
     const renderLeft = () => {
-        if (leftContent) return leftContent; // 커스텀 요소가 넘어오면 그대로 렌더링
+        if (leftContent) return leftContent;
 
         if (leftType === 'back') {
             return (
@@ -19,52 +19,71 @@ export default function Header({ leftType = 'logo', leftContent, title = '내 �
                 <button style={styles.backBtn} onClick={() => navigate(-1)}>✕</button>
             );
         }
-        // 기본값: 로고
         return (
             <div style={styles.logoBox} onClick={() => navigate('/')}>
-                <span style={styles.logoIcon}></span>
+                <div style={styles.logoIcon}></div>
                 <span style={styles.logoText}>INGYEJEOM</span>
             </div>
         );
     };
 
     return (
-        <header style={styles.header}>
-            <div style={styles.left}>
-                {renderLeft()}
-            </div>
+        <>
+            {/* Header가 fixed로 떠 있으므로, 다른 컨텐츠가 위로 밀려 올라가지 않게 공간만 차지하는 빈 박스 추가 */}
+            <div style={styles.headerPlaceholder}></div>
 
-            <div style={styles.center}>
-                <span style={leftType === 'logo' && !leftContent ? styles.navText : styles.pageTitle}>{title}</span>
-            </div>
-
-            <div style={styles.right}>
-                {rightElement}
-                <div style={styles.profileAvatar} onClick={() => navigate('/profile')}>
-                    <span className="material-icons" style={{ fontSize: '18px' }}>person</span>
+            <header style={styles.header}>
+                <div style={styles.left}>
+                    {renderLeft()}
                 </div>
-            </div>
-        </header>
+
+                <div style={styles.center}>
+                    <span style={leftType === 'logo' && !leftContent ? styles.navText : styles.pageTitle}>{title}</span>
+                </div>
+
+                <div style={styles.right}>
+                    {rightElement}
+                    <div style={styles.profileAvatar} onClick={() => navigate('/profile')}>
+                        <span className="material-icons" style={{ fontSize: '18px' }}>person</span>
+                    </div>
+                </div>
+            </header>
+        </>
     );
 }
 
 const styles = {
+    headerPlaceholder: {
+        height: '70px',
+        width: '100%',
+        flexShrink: 0
+    },
     header: {
-        position: 'sticky', top: 0,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        height: '64px', padding: '0 40px', backgroundColor: '#FFFFFF', borderBottom: '1px solid #E5E7EB',
-        zIndex: 50
+        position: 'fixed', // 부모의 제약을 완전히 벗어나 화면 최상단에 고정
+        top: 0,
+        left: 0,
+        right: 0,
+        width: '100vw',
+        height: '70px', // 높이를 70px로 단단히 고정 (버튼 크기에 쪼그라들지 않음)
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '0 40px',
+        backgroundColor: '#FFFFFF',
+        borderBottom: '1px solid #E5E7EB',
+        zIndex: 9999, // 가장 위에 뜨도록 설정
+        boxSizing: 'border-box'
     },
     left: { display: 'flex', alignItems: 'center', cursor: 'pointer', flex: 1 },
-    logoBox: { display: 'flex', alignItems: 'center', gap: '8px' },
-    logoIcon: { width: '24px', height: '24px', backgroundColor: '#4F46E5', borderRadius: '4px' },
-    logoText: { fontSize: '20px', fontWeight: '700', fontStyle: 'italic', color: '#111827' },
-    backBtn: { display: 'flex', alignItems: 'center', color: '#6B7280', background: 'none', border: 'none', cursor: 'pointer', fontSize: '15px', fontWeight: '600' },
+    logoBox: { display: 'flex', alignItems: 'center', gap: '10px' },
+    logoIcon: { width: '28px', height: '28px', backgroundColor: '#4F46E5', borderRadius: '6px' },
+    logoText: { fontSize: '22px', fontWeight: '800', fontStyle: 'italic', color: '#111827', letterSpacing: '-0.5px' },
+    backBtn: { display: 'flex', alignItems: 'center', color: '#4B5563', background: 'none', border: 'none', cursor: 'pointer', fontSize: '15px', fontWeight: '600' },
 
-    center: { position: 'absolute', left: '50%', transform: 'translateX(-50%)', textAlign: 'center', flex: 2 },
-    navText: { fontSize: '16px', fontWeight: '700', color: '#374151', cursor: 'pointer' },
+    center: { position: 'absolute', left: '50%', transform: 'translateX(-50%)', textAlign: 'center', flex: 2, pointerEvents: 'none' },
+    navText: { fontSize: '16px', fontWeight: '700', color: '#374151', cursor: 'pointer', pointerEvents: 'auto' },
     pageTitle: { fontSize: '18px', fontWeight: '700', color: '#111827' },
 
     right: { display: 'flex', alignItems: 'center', gap: '16px', flex: 1, justifyContent: 'flex-end' },
-    profileAvatar: { width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, #4F46E5 0%, #A855F7 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }
+    profileAvatar: { width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #4F46E5 0%, #A855F7 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }
 };
