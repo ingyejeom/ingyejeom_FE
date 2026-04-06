@@ -122,7 +122,8 @@ export default function Profile() {
             />
 
             <main style={styles.mainContainer}>
-                <section style={styles.leftPanel}>
+                {/* 1: 기본 정보 */}
+                <section style={styles.panel}>
                     <div style={styles.panelTitleRowSpaceBetween}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span className="material-icons" style={{ color: '#3B82F6', fontSize: '24px' }}>person</span>
@@ -145,64 +146,68 @@ export default function Profile() {
                     </div>
                 </section>
 
-                <section style={styles.rightPanel}>
+                {/* 2: 내가 관리 중인 그룹 */}
+                <section style={styles.panel}>
                     <div style={styles.panelTitleRow}>
-                        <span className="material-icons" style={{ color: '#3B82F6', fontSize: '24px' }}>corporate_fare</span>
-                        <h2 style={styles.panelTitle}>내 스페이스 정보</h2>
+                        <span className="material-icons" style={{ color: '#F59E0B', fontSize: '24px' }}>workspace_premium</span>
+                        <h2 style={styles.panelTitle}>내가 관리 중인 그룹</h2>
                     </div>
 
-                    <div style={styles.groupListContainer}>
-                        {adminGroups.length === 0 && memberSpaces.length === 0 && (
-                            <p style={{ color: '#6B7280', textAlign: 'center', padding: '40px' }}>참여 중인 스페이스가 없습니다.</p>
-                        )}
-
-                        {adminGroups.length > 0 && (
-                            <div style={styles.subSection}>
-                                <h3 style={styles.subSectionTitle}>👑 내가 관리 중인 그룹</h3>
-                                <div style={styles.scrollArea}>
-                                    {adminGroups.map((group, idx) => (
-                                        <div key={`admin-${group.id}-${idx}`} style={styles.groupCard}>
-                                            <div style={styles.groupHeader}>
-                                                <span style={styles.badgeAdmin}>{group.roleLabel}</span>
-                                            </div>
-                                            <div style={styles.groupBody}>
-                                                <div>
-                                                    <h4 style={styles.groupName}>{group.name}</h4>
-                                                    <p style={styles.groupDesc}>{group.description}</p>
-                                                </div>
-                                                <button style={styles.manageBtn} onClick={() => navigate(`/group/manage/${group.id}`)}>그룹 관리</button>
-                                            </div>
+                    <div style={styles.scrollArea}>
+                        {adminGroups.length === 0 ? (
+                            <p style={styles.emptyText}>관리 중인 그룹이 없습니다.</p>
+                        ) : (
+                            adminGroups.map((group, idx) => (
+                                <div key={`admin-${group.id}-${idx}`} style={styles.groupCard}>
+                                    <div style={styles.groupHeader}>
+                                        <span style={styles.badgeAdmin}>{group.roleLabel}</span>
+                                    </div>
+                                    <div style={styles.groupBody}>
+                                        <div>
+                                            <h4 style={styles.groupName}>{group.name}</h4>
+                                            <p style={styles.groupDesc}>{group.description}</p>
                                         </div>
-                                    ))}
+                                        {/* 수정: 경로 spacelist로 변경 */}
+                                        <button style={styles.manageBtn} onClick={() => navigate(`/group/spacelist/${group.id}`)}>그룹 관리</button>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
-
-                        {memberSpaces.length > 0 && (
-                            <div style={styles.subSection}>
-                                <h3 style={styles.subSectionTitle}>🏢 내가 참여 중인 스페이스</h3>
-                                <div style={styles.scrollArea}>
-                                    {memberSpaces.map((space, idx) => (
-                                        <div key={`member-${space.id}-${idx}`} style={styles.groupCard}>
-                                            <div style={styles.groupHeader}>
-                                                <span style={styles.badgeMember}>{space.roleLabel}</span>
-                                                {space.code && <span style={styles.spaceCode}>코드: {space.code}</span>}
-                                            </div>
-                                            <div style={styles.groupBody}>
-                                                <div>
-                                                    <h4 style={styles.groupName}>{space.name}</h4>
-                                                    <p style={styles.groupDesc}>{space.description}</p>
-                                                    <p style={styles.adminNameText}>관리자: {space.adminName}</p>
-                                                </div>
-                                                <button style={styles.handoverBtn} onClick={() => handleOpenHandoverModal(space.spaceId)}>인계하기</button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
+                            ))
                         )}
                     </div>
+                    {/* 그룹 생성 버튼을 두번째 패널 하단에 고정 */}
                     <button style={styles.joinNewGroupBtn} onClick={() => navigate('/group/create')}>+ 새로운 그룹 생성하기</button>
+                </section>
+
+                {/* 3: 내가 참여 중인 스페이스 */}
+                <section style={styles.panel}>
+                    <div style={styles.panelTitleRow}>
+                        <span className="material-icons" style={{ color: '#10B981', fontSize: '24px' }}>corporate_fare</span>
+                        <h2 style={styles.panelTitle}>내가 참여 중인 스페이스</h2>
+                    </div>
+
+                    <div style={styles.scrollArea}>
+                        {memberSpaces.length === 0 ? (
+                            <p style={styles.emptyText}>참여 중인 스페이스가 없습니다.</p>
+                        ) : (
+                            memberSpaces.map((space, idx) => (
+                                <div key={`member-${space.id}-${idx}`} style={styles.groupCard}>
+                                    <div style={styles.groupHeader}>
+                                        <span style={styles.badgeMember}>{space.roleLabel}</span>
+                                        {/* 스페이스 코드 */}
+                                        {/* {space.code && <span style={styles.spaceCode}>코드: {space.code}</span>} */}
+                                    </div>
+                                    <div style={styles.groupBody}>
+                                        <div>
+                                            <h4 style={styles.groupName}>{space.description}</h4>
+                                            <p style={styles.groupDesc}>{space.name}</p>
+                                            <p style={styles.adminNameText}>관리자: {space.adminName}</p>
+                                        </div>
+                                        <button style={styles.handoverBtn} onClick={() => handleOpenHandoverModal(space.spaceId)}>인계하기</button>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
                 </section>
             </main>
 
@@ -227,10 +232,12 @@ const styles = {
     pageBackground: { backgroundColor: '#F3F4F6', minHeight: '100vh', display: 'flex', flexDirection: 'column' },
     logoutBtn: { padding: '8px 16px', backgroundColor: '#FFFFFF', color: '#EF4444', border: '1px solid #EF4444', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' },
     editBtn: { padding: '6px 12px', backgroundColor: '#F3F4F6', color: '#374151', borderRadius: '6px', fontSize: '12px', fontWeight: '600', border: '1px solid #D1D5DB', cursor: 'pointer' },
-    mainContainer: { flex: 1, maxWidth: '1100px', margin: '40px auto', width: '100%', display: 'flex', gap: '24px', padding: '0 24px' },
-    leftPanel: { flex: 1, backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '32px', height: 'fit-content' },
-    rightPanel: { flex: 1.5, backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '32px', display: 'flex', flexDirection: 'column' },
-    panelTitleRowSpaceBetween: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' },
+
+    // 3분할 Grid 레이아웃 적용
+    mainContainer: { flex: 1, maxWidth: '1400px', margin: '40px auto', width: '100%', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', padding: '0 24px' },
+    panel: { backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '32px', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 160px)' },
+
+    panelTitleRowSpaceBetween: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexShrink: 0 },
     panelTitleRow: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px', flexShrink: 0 },
     panelTitle: { fontSize: '18px', fontWeight: '700', color: '#111827' },
     profileCard: { display: 'flex', flexDirection: 'column', alignItems: 'center' },
@@ -244,10 +251,7 @@ const styles = {
     infoIcon: { color: '#9CA3AF', fontSize: '18px' },
     infoText: { fontSize: '14px', color: '#374151' },
 
-    // 스크롤 분리 관련 주요 스타일
-    groupListContainer: { display: 'flex', flexDirection: 'column', gap: '24px', flex: 1, overflow: 'hidden' },
-    subSection: { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 },
-    subSectionTitle: { fontSize: '15px', fontWeight: '700', color: '#374151', paddingBottom: '8px', borderBottom: '1px solid #E5E7EB', marginBottom: '12px', flexShrink: 0 },
+    emptyText: { color: '#6B7280', textAlign: 'center', padding: '40px', fontSize: '14px' },
     scrollArea: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '8px' },
 
     groupCard: { border: '1px solid #E5E7EB', borderRadius: '8px', padding: '20px', backgroundColor: '#F9FAFB', flexShrink: 0 },
