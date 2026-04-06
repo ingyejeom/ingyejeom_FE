@@ -22,12 +22,18 @@ export default function Handover() {
     const location = useLocation();
     const { id } = useParams();
 
-    // 💡 URL에서 넘어온 타겟 스페이스 ID 추출
+    // Extract target space ID from URL query params
     const searchParams = new URLSearchParams(location.search);
     const targetSpaceId = searchParams.get('spaceId');
 
-    const isViewMode = location.pathname.includes('/view');
-    const isEditMode = location.pathname.includes('/edit') || id != null;
+    // Determine if this is the latest handover to allow editing
+    const [isLatestHandover, setIsLatestHandover] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+
+    // Create mode: no id and on create path
+    const isCreateMode = !id && location.pathname.includes('/create');
+    // Edit permission: only for new creation or latest handover
+    const canEdit = isCreateMode || isLatestHandover;
 
     const [title, setTitle] = useState('');
     const [modules, setModules] = useState([]);
@@ -35,15 +41,17 @@ export default function Handover() {
     const [metaInfo, setMetaInfo] = useState({ groupId: null, groupName: '그룹', workName: '스페이스', userName: '-', createdAt: null, spaceId: null });
     const [userSpaceId, setUserSpaceId] = useState(null);
 
-    // PDF 생성 관련 상태
-    const [isSaved, setIsSaved] = useState(!!id); // 기존 문서는 이미 저장됨
+    // PDF generation related state
+    const [isSaved, setIsSaved] = useState(!!id);
     const [savedHandoverId, setSavedHandoverId] = useState(id ? parseInt(id) : null);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
     useEffect(() => {
-        if (id) {
-            const fetchHandover = async () => {
-                try {
+        const loadData = async () => {
+            setIsLoading(true);
+            try {
+                if (id) {
+                    // Load existing document
                     const res = await api.get('/handover', { params: { id } });
                     const data = res.data;
 
@@ -61,40 +69,50 @@ export default function Handover() {
                         try {
                             const parsed = JSON.parse(data.text);
                             setModules(parsed.modules || []);
-                        } catch (e) { console.error('JSON 파싱 오류', e); }
+                        } catch (e) { console.error('JSON parsing error', e); }
                     }
-                } catch (error) {
-                    console.error(error);
-                    alert('문서를 불러오는데 실패했습니다.');
-                }
-            };
-            fetchHandover();
-        } else {
-            // 💡 [버그 수정됨] 정확한 userSpaceId 매칭
-            const fetchUserSpace = async () => {
-                try {
+
+                    // Fetch all handovers for this space to determine if current is latest
+                    if (data.spaceId) {
+                        const allHandoversRes = await api.get(`/handover/space/${data.spaceId}`);
+                        const allHandovers = allHandoversRes.data || [];
+                        if (allHandovers.length > 0) {
+                            // The one with highest ID is the latest
+                            const latestId = Math.max(...allHandovers.map(h => h.id));
+                            setIsLatestHandover(parseInt(id) === latestId);
+                        } else {
+                            setIsLatestHandover(true);
+                        }
+                    }
+                } else {
+                    // Create mode: fetch user space info
                     const res = await api.get('/userSpace/list', { params: { deleted: false } });
 
-                    // 타겟 스페이스 아이디와 일치하는 내 참여 스페이스 정보를 찾음
                     const matchingSpace = targetSpaceId
                         ? res.data.find(item => item.spaceId === parseInt(targetSpaceId))
                         : null;
 
                     if (matchingSpace) {
-                        setUserSpaceId(matchingSpace.id); // 올바른 ID 세팅!
+                        setUserSpaceId(matchingSpace.id);
                         setMetaInfo(prev => ({ ...prev, groupId: matchingSpace.groupId, groupName: matchingSpace.groupName, workName: matchingSpace.workName, spaceId: matchingSpace.spaceId }));
                     } else if (res.data.length > 0) {
-                        // 못 찾을 경우 예외처리
                         setUserSpaceId(res.data[0].id);
                         setMetaInfo(prev => ({ ...prev, groupId: res.data[0].groupId, groupName: res.data[0].groupName, workName: res.data[0].workName, spaceId: res.data[0].spaceId }));
                     }
-                } catch (error) { console.error(error); }
-            };
-            fetchUserSpace();
-        }
+                    // New creation is always editable
+                    setIsLatestHandover(true);
+                }
+            } catch (error) {
+                console.error(error);
+                alert('Failed to load the document.');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        loadData();
     }, [id, targetSpaceId]);
 
-    // 새 문서 생성 시 기본 제목 자동 생성: 그룹_스페이스_인수인계서_날짜
+    // Auto-generate default title for new documents
     useEffect(() => {
         if (!id && metaInfo.groupName !== '그룹' && metaInfo.workName !== '스페이스' && !title) {
             const today = new Date().toISOString().split('T')[0];
@@ -143,13 +161,13 @@ export default function Handover() {
 
         try {
             if (id || savedHandoverId) {
-                // 수정 모드: 기존 문서 업데이트
+                // Update mode: update existing document
                 const handoverId = savedHandoverId || parseInt(id);
                 await api.put('/handover', { id: handoverId, title, text: payloadText });
                 alert('저장되었습니다. PDF를 생성하려면 "PDF 생성" 버튼을 클릭하세요.');
                 setIsSaved(true);
             } else {
-                // 생성 모드: spaceId로 새 문서 생성 (새 API 사용)
+                // Create mode: create new document using spaceId
                 if (!targetSpaceId) { alert('스페이스 정보를 찾을 수 없습니다.'); return; }
                 const res = await api.post('/handover/bySpace', { title, text: payloadText, spaceId: parseInt(targetSpaceId) });
                 const newId = res.data?.id;
@@ -165,12 +183,12 @@ export default function Handover() {
         }
     };
 
-    // PDF 생성용 임시 요소 생성
+    // Create temporary DOM element for PDF generation
     const createPdfContent = () => {
         const container = document.createElement('div');
         container.style.cssText = 'position:absolute;left:-9999px;top:0;width:800px;padding:40px;background:#fff;font-family:sans-serif;';
 
-        // 헤더
+        // Header section
         const header = document.createElement('div');
         header.style.cssText = 'text-align:center;margin-bottom:30px;padding-bottom:20px;border-bottom:2px solid #333;';
         header.innerHTML = `
@@ -182,7 +200,7 @@ export default function Handover() {
         `;
         container.appendChild(header);
 
-        // 모듈 내용
+        // Module content
         modules.forEach(module => {
             const typeInfo = MODULE_TYPES[module.type] || { icon: '📄', label: '모듈' };
             const moduleDiv = document.createElement('div');
@@ -213,9 +231,9 @@ export default function Handover() {
         return container;
     };
 
-    // PDF 생성 및 업로드 함수
+    // PDF generation and upload handler
     const handleGeneratePdf = async () => {
-        if (!isSaved) {
+        if (!isSaved && canEdit) {
             alert('먼저 인수인계서를 저장해주세요.');
             return;
         }
@@ -223,16 +241,16 @@ export default function Handover() {
         setIsGeneratingPdf(true);
 
         try {
-            // PDF용 임시 요소 생성
+            // Create temporary element for PDF
             const pdfContent = createPdfContent();
             document.body.appendChild(pdfContent);
 
             const rawText = pdfContent.innerText;
 
-            // 렌더링 대기
+            // Wait for rendering
             await new Promise(resolve => setTimeout(resolve, 100));
 
-            // html2canvas로 캡처
+            // Capture with html2canvas
             const canvas = await html2canvas(pdfContent, {
                 scale: 2,
                 useCORS: true,
@@ -240,7 +258,7 @@ export default function Handover() {
                 backgroundColor: '#ffffff'
             });
 
-            // 임시 요소 제거
+            // Remove temporary element
             document.body.removeChild(pdfContent);
 
             const imgData = canvas.toDataURL('image/png');
@@ -264,23 +282,23 @@ export default function Handover() {
                 heightLeft -= (pageHeight - margin * 2);
             }
 
-            // PDF를 Blob으로 변환
+            // Convert PDF to Blob
             const pdfBlob = doc.output('blob');
             const fileName = `${title || '인수인계서'}_${new Date().toISOString().split('T')[0]}.pdf`;
             const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
-            // 마크다운(MD) 파일 생성 - 챗봇 근거로 사용하기 위함
+            // Create markdown file for chatbot learning
             const textBlob = new Blob([rawText], { type: 'text/markdown' });
             const mdFile = new File([textBlob], `${title || '인수인계서'}_챗봇학습용.md`, { type: 'text/markdown' });
 
-            // spaceId 확인
+            // Verify spaceId
             const uploadSpaceId = targetSpaceId || metaInfo.spaceId;
             if (!uploadSpaceId) {
                 alert('스페이스 정보를 찾을 수 없어 PDF 업로드가 불가합니다.');
                 return;
             }
 
-            // "인수인계서" 폴더 찾기 또는 생성
+            // Find or create handover folder
             let handoverFolderId = null;
             try {
                 const folderRes = await api.get('/file/list', { params: { spaceId: uploadSpaceId, folderId: null } });
@@ -289,13 +307,13 @@ export default function Handover() {
                 if (existingFolder) {
                     handoverFolderId = existingFolder.id;
                 } else {
-                    // 폴더가 없으면 생성
-                    const createRes = await api.post('/file/folder', {
+                    // Create folder if it doesn't exist
+                    await api.post('/file/folder', {
                         spaceId: parseInt(uploadSpaceId),
                         parentId: null,
                         name: '인수인계서'
                     });
-                    // 폴더 생성 후 다시 목록 조회하여 ID 가져오기
+                    // Fetch folder list again to get the new folder ID
                     const newFolderRes = await api.get('/file/list', { params: { spaceId: uploadSpaceId, folderId: null } });
                     const newFolder = newFolderRes.data.find(item => item.type === 'FOLDER' && item.name === '인수인계서');
                     if (newFolder) {
@@ -303,25 +321,18 @@ export default function Handover() {
                     }
                 }
             } catch (folderError) {
-                console.error('폴더 처리 오류:', folderError);
+                console.error('Folder processing error:', folderError);
             }
 
             const handoverFormData = new FormData();
-            handoverFormData.append('pdfFile', pdfFile); 
-            handoverFormData.append('mdFile', mdFile);   
+            handoverFormData.append('pdfFile', pdfFile);
+            handoverFormData.append('mdFile', mdFile);
             handoverFormData.append('spaceId', uploadSpaceId.toString());
             if (handoverFolderId) {
                 handoverFormData.append('folderId', handoverFolderId.toString());
             }
 
-            // FormData로 파일 업로드 (인수인계서 폴더에)
-            const formData = new FormData();
-            formData.append('file', pdfFile);
-            formData.append('spaceId', uploadSpaceId.toString());
-            if (handoverFolderId) {
-                formData.append('folderId', handoverFolderId.toString());
-            }
-
+            // Upload files to handover folder
             await api.post('/handover/save', handoverFormData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
                 timeout: 0
@@ -329,7 +340,7 @@ export default function Handover() {
 
             alert('PDF가 생성되어 인수인계서 폴더에 저장되었습니다.');
         } catch (error) {
-            console.error('PDF 생성 오류:', error);
+            console.error('PDF generation error:', error);
             alert('PDF 생성에 실패했습니다.');
         } finally {
             setIsGeneratingPdf(false);
@@ -341,23 +352,21 @@ export default function Handover() {
     // Module color mapping for visual distinction
     const getModuleColor = (type) => {
         const colors = {
-            'BASIC_INFO': '#3B82F6',      // Blue
-            'ACCOUNT_ACCESS': '#8B5CF6',   // Purple
-            'TASK': '#10B981',             // Green
-            'ASSET': '#F59E0B',            // Amber
-            'BUDGET': '#EC4899',           // Pink
-            'DOCUMENT_CONTACT': '#6366F1', // Indigo
-            'RISK': '#EF4444',             // Red
-            'STAKEHOLDER': '#14B8A6',      // Teal
-            'DECISION_HISTORY': '#F97316', // Orange
-            'FREE_NOTE': '#6B7280'         // Gray
+            'BASIC_INFO': '#3B82F6',
+            'ACCOUNT_ACCESS': '#8B5CF6',
+            'TASK': '#10B981',
+            'ASSET': '#F59E0B',
+            'BUDGET': '#EC4899',
+            'DOCUMENT_CONTACT': '#6366F1',
+            'RISK': '#EF4444',
+            'STAKEHOLDER': '#14B8A6',
+            'DECISION_HISTORY': '#F97316',
+            'FREE_NOTE': '#6B7280'
         };
         return colors[type] || '#6B7280';
     };
 
-    // ==========================================
-    // [View Mode] 렌더링 함수
-    // ==========================================
+    // View mode rendering function
     const renderViewField = (label, value, isLink = false) => {
         if (value === undefined || value === null || value === '') return null;
         return (
@@ -381,15 +390,13 @@ export default function Handover() {
             case 'DOCUMENT_CONTACT': return <>{renderViewField('문서 제목 / 이름', data.docTitle)}<div style={styles.viewGrid}>{renderViewField('유형 / 소속', data.docType)}{renderViewField('보관 형태 / 연락처', data.storageType)}</div>{renderViewField('위치 / 역할', data.docLocation)}</>;
             case 'RISK': return <>{renderViewField('리스크 제목', <strong style={{ fontSize: '18px' }}>{data.riskTitle}</strong>)}{renderViewField('리스크 설명', data.riskDescription)}<div style={styles.viewGrid}>{renderViewField('영향도', data.impact)}{renderViewField('발생 조건', data.triggerCondition)}</div>{renderViewField('즉각 대응 방법', data.immediateResponse)}{renderViewField('사전 예방 방법', data.prevention)}<hr style={styles.divider} /><div style={styles.viewGrid}>{renderViewField('관련 업무', data.relatedTask)}{renderViewField('참고 문서', data.referenceDoc)}</div>{renderViewField('외부 공유 가능', data.isExternalShareable ? '✅ 예' : '❌ 아니오')}<hr style={styles.divider} /><div style={styles.viewGrid}>{renderViewField('작성자', data.author)}{renderViewField('최종 업데이트일', data.lastUpdatedDate)}</div></>;
             case 'STAKEHOLDER': return <>{renderViewField('이름 / 직함', <strong style={{ fontSize: '18px' }}>{data.personName}</strong>)}{renderViewField('소속 / 관계', data.organization)}{renderViewField('연락처', data.contact)}{renderViewField('담당 역할', data.role)}</>;
-            case 'DECISION_HISTORY': return <>{renderViewField('결정 제목', <strong style={{ fontSize: '18px' }}>{data.decisionTitle}</strong>)}{renderViewField('결정 내용', data.decisionContent)}{renderViewField('결정 이유 (Why)', data.decisionReason)}<div style={styles.viewGrid}>{renderViewField('결정 시점', data.decisionDate)}{renderViewField('결정자', data.decisionMaker)}</div><hr style={styles.divider} />{renderViewField('대안 검토 여부', data.hasAlternatives === 'YES' ? '✅ 있음' : (data.hasAlternatives === 'NO' ? '❌ 없음' : ''))}{renderViewField('검토된 대안', data.reviewedAlternatives)}{renderViewField('변경 영향', data.changeImpact)}<hr style={styles.divider} /><div style={styles.viewGrid}>{renderViewField('관련 업무', data.relatedTask)}{renderViewField('참고 자료', data.referenceUrl, true)}</div><div style={styles.viewGrid}>{renderViewField('외부 공유 가능', data.isExternalShareable ? '✅ 예' : '❌ 아니오')}{renderViewField('최종 업데이트일', data.lastUpdatedDate)}</div></>;
+            case 'DECISION_HISTORY': return <>{renderViewField('결정 제목', <strong style={{ fontSize: '18px' }}>{data.decisionTitle}</strong>)}{renderViewField('결정 내용', data.decisionContent)}{renderViewField('결정 이유 (Why)', data.decisionReason)}<div style={styles.viewGrid}>{renderViewField('결정 시점', data.decisionDate)}{renderViewField('결정자', data.decisionMaker)}</div><hr style={styles.divider} />{renderViewField('대안 검토 여부', data.hasAlternatives === 'YES' ? '있음' : (data.hasAlternatives === 'NO' ? '없음' : ''))}{renderViewField('검토된 대안', data.reviewedAlternatives)}{renderViewField('변경 영향', data.changeImpact)}<hr style={styles.divider} /><div style={styles.viewGrid}>{renderViewField('관련 업무', data.relatedTask)}{renderViewField('참고 자료', data.referenceUrl, true)}</div><div style={styles.viewGrid}>{renderViewField('외부 공유 가능', data.isExternalShareable ? '예' : '아니오')}{renderViewField('최종 업데이트일', data.lastUpdatedDate)}</div></>;
             case 'FREE_NOTE': return <>{renderViewField('제목', <strong style={{ fontSize: '18px' }}>{data.noteTitle}</strong>)}<div style={styles.viewGrid}>{renderViewField('분류', data.category)}{renderViewField('중요도', data.importance)}</div>{renderViewField('내용', <pre style={styles.preText}>{data.content}</pre>)}<hr style={styles.divider} />{renderViewField('관련 업무', data.relatedTask)}{renderViewField('첨부/참고 링크', data.attachmentLink, true)}<div style={styles.viewGrid}>{renderViewField('작성자', data.author)}{renderViewField('작성일', data.createdDate)}</div></>;
             default: return <p>알 수 없는 모듈입니다.</p>;
         }
     };
 
-    // ==========================================
-    // [Edit Mode] 렌더링 함수
-    // ==========================================
+    // Edit mode rendering function
     const renderEditModule = (module) => {
         const { data, id: mId } = module;
         const handleChange = (field, e) => updateModuleData(mId, field, e.target.type === 'checkbox' ? e.target.checked : e.target.value);
@@ -422,7 +429,7 @@ export default function Handover() {
             );
             case 'TASK': return (
                 <>
-                    {/* 기본 정보 섹션 */}
+                    {/* Basic info section */}
                     <div style={styles.sectionGroup}>
                         <div style={styles.sectionTitle}>기본 정보</div>
                         <div style={styles.formGrid}>
@@ -438,7 +445,7 @@ export default function Handover() {
                         </div>
                     </div>
 
-                    {/* 업무 상세 섹션 */}
+                    {/* Task detail section */}
                     <div style={styles.sectionGroup}>
                         <div style={styles.sectionTitle}>업무 상세</div>
                         <div style={styles.formGrid}>
@@ -451,7 +458,7 @@ export default function Handover() {
                         </div>
                     </div>
 
-                    {/* 현재 상태 섹션 */}
+                    {/* Current status section */}
                     <div style={styles.sectionGroup}>
                         <div style={styles.sectionTitle}>현재 상태</div>
                         <div style={styles.formGrid}>
@@ -464,7 +471,7 @@ export default function Handover() {
                         </div>
                     </div>
 
-                    {/* 관련 정보 섹션 */}
+                    {/* Related info section */}
                     <div style={{ ...styles.sectionGroup, borderBottom: 'none', marginBottom: 0, paddingBottom: 0 }}>
                         <div style={styles.sectionTitle}>관련 정보</div>
                         <div style={styles.formGrid}>
@@ -577,11 +584,20 @@ export default function Handover() {
         }
     };
 
+    // Show loading state
+    if (isLoading) {
+        return (
+            <div style={{ ...styles.pageBackground, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                <p>로딩 중...</p>
+            </div>
+        );
+    }
+
     return (
         <div style={styles.pageBackground}>
             <header style={styles.header}>
                 <nav style={styles.breadcrumb}>
-                    <span style={{ cursor: 'pointer', color: '#3B82F6' }} onClick={() => navigate('/')}>🏠 내 스페이스</span>
+                    <span style={{ cursor: 'pointer', color: '#3B82F6' }} onClick={() => navigate('/')}>내 스페이스</span>
                     <span>&gt;</span>
                     <span
                         style={{ cursor: 'pointer', color: '#3B82F6' }}
@@ -609,37 +625,33 @@ export default function Handover() {
                     </span>
                 </nav>
                 <div style={styles.headerButtons}>
-                    {!isViewMode && (
+                    {canEdit ? (
                         <>
-                            <button style={styles.btnPrimary} onClick={handleSave}>💾 저장하기</button>
+                            <button style={styles.btnPrimary} onClick={handleSave}>저장하기</button>
                             <button
                                 style={isSaved ? styles.btnPdf : styles.btnPdfDisabled}
                                 onClick={handleGeneratePdf}
                                 disabled={!isSaved || isGeneratingPdf}
                             >
-                                {isGeneratingPdf ? '⏳ 생성 중...' : '📄 PDF 생성'}
+                                {isGeneratingPdf ? '생성 중...' : 'PDF 생성'}
                             </button>
                         </>
-                    )}
-                    {isViewMode && (
-                        <>
-                            <button style={styles.btnSecondary} onClick={() => window.print()}>🖨️ 인쇄</button>
-                            <button
-                                style={styles.btnPdf}
-                                onClick={handleGeneratePdf}
-                                disabled={isGeneratingPdf}
-                            >
-                                {isGeneratingPdf ? '⏳ 생성 중...' : '📄 PDF 생성'}
-                            </button>
-                        </>
+                    ) : (
+                        <button
+                            style={styles.btnPdf}
+                            onClick={handleGeneratePdf}
+                            disabled={isGeneratingPdf}
+                        >
+                            {isGeneratingPdf ? '생성 중...' : 'PDF 생성'}
+                        </button>
                     )}
                 </div>
             </header>
 
             <div style={styles.mainContainer}>
-                {!isViewMode && (
+                {canEdit && (
                     <aside style={styles.sidebar}>
-                        <div style={styles.sidebarTitle}>📦 모듈 추가 (클릭)</div>
+                        <div style={styles.sidebarTitle}>모듈 추가 (클릭)</div>
                         {Object.entries(MODULE_TYPES).map(([type, info]) => (
                             <div key={type} style={styles.moduleItem} onClick={() => addModule(type)}>
                                 <span>{info.icon}</span>
@@ -649,23 +661,23 @@ export default function Handover() {
                     </aside>
                 )}
 
-                <main style={{ ...styles.content, marginLeft: isViewMode ? 'auto' : '250px', marginRight: isViewMode ? 'auto' : '0' }}>
+                <main style={{ ...styles.content, marginLeft: canEdit ? '250px' : 'auto', marginRight: canEdit ? '0' : 'auto' }}>
                     <div style={styles.documentHeader}>
-                        {isViewMode ? (
+                        {canEdit ? (
+                            <input style={styles.titleInput} placeholder="인수인계서 제목을 입력하세요" value={title} onChange={e => setTitle(e.target.value)} />
+                        ) : (
                             <>
                                 <h1 style={styles.documentTitle}>{title || '제목 없음'}</h1>
                                 <div style={styles.documentMeta}>
-                                    <span>📅 작성일: {metaInfo.createdAt ? metaInfo.createdAt.split('T')[0] : '-'}</span>
-                                    <span>👤 작성자: {metaInfo.userName}</span>
+                                    <span>작성일: {metaInfo.createdAt ? metaInfo.createdAt.split('T')[0] : '-'}</span>
+                                    <span>작성자: {metaInfo.userName}</span>
                                 </div>
                             </>
-                        ) : (
-                            <input style={styles.titleInput} placeholder="인수인계서 제목을 입력하세요" value={title} onChange={e => setTitle(e.target.value)} />
                         )}
                     </div>
 
                     <div style={styles.modulesContainer}>
-                        {modules.length === 0 && !isViewMode && (
+                        {modules.length === 0 && canEdit && (
                             <div style={styles.emptyState}>좌측 팔레트에서 모듈을 클릭하여 추가하세요.</div>
                         )}
 
@@ -699,7 +711,7 @@ export default function Handover() {
                                                 }}>{typeInfo.icon}</span>
                                                 <span style={styles.moduleLabel}>{typeInfo.label}</span>
                                             </div>
-                                            {!isViewMode && (
+                                            {canEdit && (
                                                 <div style={{ display: 'flex', gap: '6px' }}>
                                                     <button style={styles.iconBtn} onClick={() => moveModule(index, 'UP')}>▲</button>
                                                     <button style={styles.iconBtn} onClick={() => moveModule(index, 'DOWN')}>▼</button>
@@ -711,7 +723,7 @@ export default function Handover() {
 
                                         {!module.collapsed && (
                                             <div style={styles.moduleBody}>
-                                                {isViewMode ? renderViewModule(module) : renderEditModule(module)}
+                                                {canEdit ? renderEditModule(module) : renderViewModule(module)}
                                             </div>
                                         )}
                                     </div>
@@ -731,7 +743,6 @@ const styles = {
     breadcrumb: { display: 'flex', alignItems: 'center', gap: '8px', color: '#666', fontSize: '14px', fontWeight: '500' },
     headerButtons: { display: 'flex', gap: '10px' },
     btnPrimary: { background: '#3B82F6', color: 'white', padding: '8px 20px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' },
-    btnSecondary: { background: '#6c757d', color: 'white', padding: '8px 20px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' },
     btnPdf: { background: '#10B981', color: 'white', padding: '8px 20px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' },
     btnPdfDisabled: { background: '#9CA3AF', color: 'white', padding: '8px 20px', border: 'none', borderRadius: '6px', cursor: 'not-allowed', fontWeight: '600', opacity: 0.6 },
     mainContainer: { display: 'flex', marginTop: '60px', minHeight: 'calc(100vh - 60px)' },
@@ -746,7 +757,7 @@ const styles = {
     modulesContainer: { minHeight: '200px', paddingBottom: '100px' },
     emptyState: { border: '2px dashed #ccc', borderRadius: '12px', padding: '40px', textAlign: 'center', color: '#999', marginTop: '15px' },
 
-    // Module Separator Styles
+    // Module separator styles
     moduleSeparator: {
         display: 'flex',
         alignItems: 'center',
@@ -766,7 +777,7 @@ const styles = {
         background: '#d1d5db'
     },
 
-    // Improved Module Card Styles
+    // Module card styles
     moduleCard: {
         background: 'white',
         borderRadius: '12px',
@@ -795,7 +806,7 @@ const styles = {
     iconBtn: { background: '#fff', border: '1px solid #e5e7eb', borderRadius: '6px', cursor: 'pointer', padding: '6px 10px', fontSize: '12px', transition: 'all 0.2s' },
     moduleBody: { padding: '28px', background: '#fafbfc' },
 
-    // 섹션 구분용 스타일
+    // Section group styles
     sectionGroup: { marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid #e5e7eb' },
     sectionTitle: { fontSize: '13px', fontWeight: '700', color: '#374151', marginBottom: '16px', paddingBottom: '8px', borderBottom: '2px solid #e5e7eb', textTransform: 'uppercase', letterSpacing: '0.5px' },
 
