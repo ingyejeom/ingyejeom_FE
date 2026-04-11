@@ -17,7 +17,7 @@ export default function Archive() {
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
     // --- 데이터 및 탐색기 상태 ---
-    const [selectedFile, setSelectedFile] = useState(null);
+    const [selectedFile, setSelectedFile] = useState([]);
     const [latestHandover, setLatestHandover] = useState(null);
     const [historyList, setHistoryList] = useState([]);
     const [files, setFiles] = useState([]);
@@ -140,7 +140,9 @@ export default function Archive() {
             return;
         }
         const formData = new FormData();
-        formData.append('file', selectedFile);
+        selectedFile.forEach((file) => {
+            formData.append('files', file);
+        });
         formData.append('spaceId', spaceId.toString());
         if (currentFolderId) {
             formData.append('folderId', currentFolderId.toString());
@@ -471,7 +473,7 @@ export default function Archive() {
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
                         <h3 style={styles.modalTitle}>자료 첨부</h3><p style={styles.modalSub}>업로드할 파일을 선택해주세요. (PDF, 이미지 등)</p>
-                        <input type="file" style={styles.fileInput} onChange={(e) => setSelectedFile(e.target.files[0])} />
+                        <input type="file" multiple style={styles.fileInput} onChange={(e) => setSelectedFile(Array.from(e.target.files))} />
                         <div style={styles.modalActions}>
                             <button style={styles.cancelBtn} onClick={() => { setIsUploadModalOpen(false); setSelectedFile(null); }}>취소</button>
                             <button style={styles.confirmBtn} onClick={handleFileUpload}>업로드</button>
