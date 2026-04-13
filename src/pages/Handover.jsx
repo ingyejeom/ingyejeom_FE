@@ -5,6 +5,7 @@ import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
 const MODULE_TYPES = {
+    'HEADING': { icon: '📌', label: '섹션 제목' },
     'BASIC_INFO': { icon: '📋', label: '기본 정보' },
     'ACCOUNT_ACCESS': { icon: '🔐', label: '계정 정보' },
     'TASK': { icon: '📝', label: '업무/과업' },
@@ -45,6 +46,12 @@ export default function Handover() {
     const [isSaved, setIsSaved] = useState(!!id);
     const [savedHandoverId, setSavedHandoverId] = useState(id ? parseInt(id) : null);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+    // Drag and drop state
+    const [draggedIndex, setDraggedIndex] = useState(null);
+    const [dragOverIndex, setDragOverIndex] = useState(null);
+    const [draggedNewType, setDraggedNewType] = useState(null);
+    const [isDraggingOverContainer, setIsDraggingOverContainer] = useState(false);
 
     useEffect(() => {
         const loadData = async () => {
@@ -151,6 +158,84 @@ export default function Handover() {
         setModules(newModules);
     };
 
+    // Drag and drop handlers
+    const handleDragStart = (e, index) => {
+        setDraggedIndex(index);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', index);
+    };
+
+    const handleDragLeave = () => {
+        setDragOverIndex(null);
+    };
+
+    const handleDragEnd = () => {
+        setDraggedIndex(null);
+        setDragOverIndex(null);
+    };
+
+    // Sidebar drag handlers for creating new modules
+    const handleSidebarDragStart = (e, type) => {
+        setDraggedNewType(type);
+        e.dataTransfer.effectAllowed = 'copy';
+        e.dataTransfer.setData('text/plain', type);
+    };
+
+    const handleSidebarDragEnd = () => {
+        setDraggedNewType(null);
+        setIsDraggingOverContainer(false);
+        setDragOverIndex(null);
+    };
+
+    const handleContainerDragOver = (e) => {
+        e.preventDefault();
+        if (draggedNewType) {
+            e.dataTransfer.dropEffect = 'copy';
+            setIsDraggingOverContainer(true);
+        }
+    };
+
+    const handleContainerDragLeave = (e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+            setIsDraggingOverContainer(false);
+        }
+    };
+
+    const handleContainerDrop = (e) => {
+        e.preventDefault();
+        if (draggedNewType) {
+            addModule(draggedNewType);
+            setDraggedNewType(null);
+            setIsDraggingOverContainer(false);
+        }
+    };
+
+    const handleDropOnModule = (e, dropIndex) => {
+        e.preventDefault();
+        if (draggedNewType) {
+            // Insert new module at specific position
+            const newModule = {
+                id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
+                type: draggedNewType,
+                data: {},
+                collapsed: false
+            };
+            const newModules = [...modules];
+            newModules.splice(dropIndex, 0, newModule);
+            setModules(newModules);
+            setDraggedNewType(null);
+            setDragOverIndex(null);
+        } else if (draggedIndex !== null && draggedIndex !== dropIndex) {
+            // Reorder existing modules
+            const newModules = [...modules];
+            const [draggedModule] = newModules.splice(draggedIndex, 1);
+            newModules.splice(dropIndex, 0, draggedModule);
+            setModules(newModules);
+            setDraggedIndex(null);
+            setDragOverIndex(null);
+        }
+    };
+
     const updateModuleData = (moduleId, field, value) => {
         setModules(modules.map(m => m.id === moduleId ? { ...m, data: { ...m.data, [field]: value } } : m));
     };
@@ -202,6 +287,15 @@ export default function Handover() {
 
         // Module content
         modules.forEach(module => {
+            // Handle HEADING module specially
+            if (module.type === 'HEADING') {
+                const headingDiv = document.createElement('div');
+                headingDiv.style.cssText = 'margin:30px 0 15px 0;padding:14px 20px;background:#fff;border-radius:8px;border-left:4px solid #6366F1;border:1px solid #e0e0e0;border-left:4px solid #6366F1;';
+                headingDiv.innerHTML = `<h2 style="font-size:18px;font-weight:700;color:#1F2937;margin:0;">${module.data.headingText || '섹션 제목'}</h2>`;
+                container.appendChild(headingDiv);
+                return;
+            }
+
             const typeInfo = MODULE_TYPES[module.type] || { icon: '📄', label: '모듈' };
             const moduleDiv = document.createElement('div');
             moduleDiv.style.cssText = 'margin-bottom:20px;border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;';
@@ -352,6 +446,7 @@ export default function Handover() {
     // Module color mapping for visual distinction
     const getModuleColor = (type) => {
         const colors = {
+            'HEADING': '#1F2937',
             'BASIC_INFO': '#3B82F6',
             'ACCOUNT_ACCESS': '#8B5CF6',
             'TASK': '#10B981',
@@ -382,6 +477,7 @@ export default function Handover() {
     const renderViewModule = (module) => {
         const { data } = module;
         switch (module.type) {
+            case 'HEADING': return null;
             case 'BASIC_INFO': return <><div style={styles.viewGrid}>{renderViewField('인계자 성명', data.handoverName)}{renderViewField('소속 / 직급', data.affiliation)}</div><div style={styles.viewGrid}>{renderViewField('인계 시작일', data.periodStart)}{renderViewField('인계 종료일', data.periodEnd)}</div><div style={styles.viewGrid}>{renderViewField('비상 연락처', data.emergencyContact)}{renderViewField('인수자 성명', data.receiverName)}</div></>;
             case 'ACCOUNT_ACCESS': return <>{renderViewField('시스템 / 사이트명', data.systemName)}{renderViewField('접속 URL', data.accessUrl, true)}<div style={styles.viewGrid}>{renderViewField('ID / 계정명', data.accountId)}{renderViewField('권한 등급', data.permissionLevel)}</div>{renderViewField('이용 규칙', data.usageRule)}</>;
             case 'TASK': return <>{renderViewField('업무명', <strong style={{ fontSize: '18px' }}>{data.taskName}</strong>)}<div style={styles.viewGrid}>{renderViewField('업무 유형', data.taskType)}{renderViewField('중요도', data.importance)}</div><div style={styles.viewGrid}>{renderViewField('수행 주기/시점', data.schedule)}{renderViewField('소요 시간', data.duration)}</div>{renderViewField('선행 업무', data.prerequisiteTask)}{renderViewField('필요 도구/환경', data.requiredTools)}{renderViewField('상세 절차 (Step)', <pre style={styles.preText}>{data.procedure}</pre>)}{renderViewField('산출물 (Output)', data.output)}{renderViewField('검증 기준', data.verificationCriteria)}{renderViewField('트러블슈팅', data.troubleshooting)}<hr style={styles.divider} />{renderViewField('현재 상태', data.status)}<div style={styles.viewGrid}>{renderViewField('최근 수행일', data.lastExecutionDate)}{renderViewField('차기 수행일', data.nextExecutionDate)}</div>{renderViewField('미결 사항', data.pendingIssues)}<hr style={styles.divider} />{renderViewField('관련 문서 링크', data.relatedDocLinks, true)}<div style={styles.viewGrid}>{renderViewField('사용 계정', data.relatedAccount)}{renderViewField('관련 담당자', data.relatedContact)}</div>{renderViewField('참고 레퍼런스', data.referenceLinks, true)}</>;
@@ -403,6 +499,17 @@ export default function Handover() {
         const full = { ...styles.formRow, gridColumn: 'span 2' };
 
         switch (module.type) {
+            case 'HEADING': return (
+                <div style={full}>
+                    <label style={styles.label}>섹션 제목</label>
+                    <input
+                        style={{ ...styles.input, fontSize: '18px', fontWeight: '700' }}
+                        placeholder="섹션 제목을 입력하세요"
+                        value={data.headingText || ''}
+                        onChange={(e) => handleChange('headingText', e)}
+                    />
+                </div>
+            );
             case 'BASIC_INFO': return (
                 <div style={styles.formGrid}>
                     <div style={full}><label style={styles.label}>인계자 성명</label><input style={styles.input} value={data.handoverName || ''} onChange={(e) => handleChange('handoverName', e)} /></div>
@@ -651,9 +758,20 @@ export default function Handover() {
             <div style={styles.mainContainer}>
                 {canEdit && (
                     <aside style={styles.sidebar}>
-                        <div style={styles.sidebarTitle}>모듈 추가 (클릭)</div>
+                        <div style={styles.sidebarTitle}>모듈 추가</div>
                         {Object.entries(MODULE_TYPES).map(([type, info]) => (
-                            <div key={type} style={styles.moduleItem} onClick={() => addModule(type)}>
+                            <div
+                                key={type}
+                                style={{
+                                    ...styles.moduleItem,
+                                    opacity: draggedNewType === type ? 0.5 : 1,
+                                    cursor: 'grab'
+                                }}
+                                draggable
+                                onDragStart={(e) => handleSidebarDragStart(e, type)}
+                                onDragEnd={handleSidebarDragEnd}
+                                onClick={() => addModule(type)}
+                            >
                                 <span>{info.icon}</span>
                                 <span>{info.label}</span>
                             </div>
@@ -676,34 +794,130 @@ export default function Handover() {
                         )}
                     </div>
 
-                    <div style={styles.modulesContainer}>
+                    <div
+                        style={{
+                            ...styles.modulesContainer,
+                            ...(isDraggingOverContainer && modules.length === 0 ? styles.containerDragOver : {})
+                        }}
+                        onDragOver={handleContainerDragOver}
+                        onDragLeave={handleContainerDragLeave}
+                        onDrop={handleContainerDrop}
+                    >
                         {modules.length === 0 && canEdit && (
-                            <div style={styles.emptyState}>좌측 팔레트에서 모듈을 클릭하여 추가하세요.</div>
+                            <div style={{
+                                ...styles.emptyState,
+                                ...(isDraggingOverContainer ? styles.emptyStateDragOver : {})
+                            }}>
+                                {isDraggingOverContainer ? '여기에 모듈을 놓으세요' : '좌측 팔레트에서 모듈을 드래그하거나 클릭하여 추가하세요.'}
+                            </div>
                         )}
 
                         {modules.map((module, index) => {
                             const typeInfo = getModuleTypeInfo(module.type);
                             const moduleColor = getModuleColor(module.type);
-                            return (
-                                <div key={module.id} style={{ marginTop: index === 0 ? '0' : '28px' }}>
-                                    {/* Separator between modules */}
-                                    {index > 0 && (
-                                        <div style={styles.moduleSeparator}>
-                                            <div style={styles.separatorDot}></div>
-                                            <div style={styles.separatorLine}></div>
-                                            <div style={styles.separatorDot}></div>
-                                        </div>
-                                    )}
+                            const isHeading = module.type === 'HEADING';
+                            const isDragging = draggedIndex === index;
+                            const isDragOver = dragOverIndex === index;
 
+                            // Render HEADING module as a section separator
+                            if (isHeading) {
+                                return (
+                                    <div
+                                        key={module.id}
+                                        style={{
+                                            marginTop: index === 0 ? '0' : '32px',
+                                            marginBottom: '16px',
+                                            opacity: isDragging ? 0.5 : 1,
+                                            transform: isDragOver ? 'scale(1.02)' : 'scale(1)',
+                                            transition: 'transform 0.2s, opacity 0.2s'
+                                        }}
+                                        draggable={canEdit}
+                                        onDragStart={(e) => handleDragStart(e, index)}
+                                        onDragOver={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            if (dragOverIndex !== index) setDragOverIndex(index);
+                                        }}
+                                        onDragLeave={handleDragLeave}
+                                        onDrop={(e) => {
+                                            e.stopPropagation();
+                                            handleDropOnModule(e, index);
+                                        }}
+                                        onDragEnd={handleDragEnd}
+                                    >
+                                        {isDragOver && (draggedIndex !== index || draggedNewType) && (
+                                            <div style={styles.dropIndicator}></div>
+                                        )}
+                                        <div style={{
+                                            ...styles.headingModule,
+                                            cursor: canEdit ? 'grab' : 'default'
+                                        }}>
+                                            {canEdit && (
+                                                <span style={styles.dragHandle}>⋮⋮</span>
+                                            )}
+                                            <div style={styles.headingContent}>
+                                                {canEdit ? (
+                                                    <input
+                                                        style={styles.headingInput}
+                                                        placeholder="섹션 제목을 입력하세요"
+                                                        value={module.data.headingText || ''}
+                                                        onChange={(e) => updateModuleData(module.id, 'headingText', e.target.value)}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    />
+                                                ) : (
+                                                    <h2 style={styles.headingText}>{module.data.headingText || '섹션 제목'}</h2>
+                                                )}
+                                            </div>
+                                            {canEdit && (
+                                                <div style={{ display: 'flex', gap: '6px' }}>
+                                                    <button style={{ ...styles.iconBtn, color: '#EF4444', borderColor: '#FCA5A5' }} onClick={() => removeModule(module.id)}>✕</button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            // Render regular modules
+                            return (
+                                <div
+                                    key={module.id}
+                                    style={{
+                                        marginTop: index === 0 ? '0' : '20px',
+                                        opacity: isDragging ? 0.5 : 1,
+                                        transform: isDragOver ? 'scale(1.02)' : 'scale(1)',
+                                        transition: 'transform 0.2s, opacity 0.2s'
+                                    }}
+                                    draggable={canEdit}
+                                    onDragStart={(e) => handleDragStart(e, index)}
+                                    onDragOver={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        if (dragOverIndex !== index) setDragOverIndex(index);
+                                    }}
+                                    onDragLeave={handleDragLeave}
+                                    onDrop={(e) => {
+                                        e.stopPropagation();
+                                        handleDropOnModule(e, index);
+                                    }}
+                                    onDragEnd={handleDragEnd}
+                                >
+                                    {isDragOver && (draggedIndex !== index || draggedNewType) && (
+                                        <div style={styles.dropIndicator}></div>
+                                    )}
                                     <div style={{
                                         ...styles.moduleCard,
                                         borderTop: `3px solid ${moduleColor}`
                                     }}>
                                         <div style={{
                                             ...styles.moduleHeader,
-                                            background: `linear-gradient(to right, ${moduleColor}08, #ffffff)`
+                                            background: `linear-gradient(to right, ${moduleColor}08, #ffffff)`,
+                                            cursor: canEdit ? 'grab' : 'default'
                                         }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                {canEdit && (
+                                                    <span style={styles.dragHandle}>⋮⋮</span>
+                                                )}
                                                 <span style={{
                                                     ...styles.moduleIcon,
                                                     background: `${moduleColor}15`,
@@ -713,8 +927,6 @@ export default function Handover() {
                                             </div>
                                             {canEdit && (
                                                 <div style={{ display: 'flex', gap: '6px' }}>
-                                                    <button style={styles.iconBtn} onClick={() => moveModule(index, 'UP')}>▲</button>
-                                                    <button style={styles.iconBtn} onClick={() => moveModule(index, 'DOWN')}>▼</button>
                                                     <button style={styles.iconBtn} onClick={() => toggleModule(module.id)}>{module.collapsed ? '펼치기' : '접기'}</button>
                                                     <button style={{ ...styles.iconBtn, color: '#EF4444', borderColor: '#FCA5A5' }} onClick={() => removeModule(module.id)}>✕</button>
                                                 </div>
@@ -755,26 +967,46 @@ const styles = {
     documentMeta: { display: 'flex', justifyContent: 'center', gap: '30px', fontSize: '13px', color: '#888' },
     titleInput: { fontSize: '28px', fontWeight: '700', color: '#333', border: 'none', borderBottom: '2px solid transparent', background: 'transparent', textAlign: 'center', width: '100%', padding: '5px', marginBottom: '8px', outline: 'none' },
     modulesContainer: { minHeight: '200px', paddingBottom: '100px' },
-    emptyState: { border: '2px dashed #ccc', borderRadius: '12px', padding: '40px', textAlign: 'center', color: '#999', marginTop: '15px' },
+    containerDragOver: { background: 'rgba(99, 102, 241, 0.05)', borderRadius: '12px' },
+    emptyState: { border: '2px dashed #ccc', borderRadius: '12px', padding: '40px', textAlign: 'center', color: '#999', marginTop: '15px', transition: 'all 0.2s' },
+    emptyStateDragOver: { border: '2px dashed #6366F1', background: 'rgba(99, 102, 241, 0.1)', color: '#6366F1' },
 
-    // Module separator styles
-    moduleSeparator: {
+    // Heading module styles
+    headingModule: {
         display: 'flex',
         alignItems: 'center',
-        gap: '12px',
-        padding: '20px 40px',
-        marginBottom: '8px'
+        justifyContent: 'space-between',
+        padding: '20px 24px',
+        background: 'white',
+        borderRadius: '12px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+        border: '1px solid #e5e7eb',
+        borderLeft: '4px solid #6366F1'
     },
-    separatorLine: {
+    headingContent: {
         flex: 1,
-        height: '1px',
-        background: 'linear-gradient(90deg, #e5e7eb, #d1d5db 50%, #e5e7eb)'
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
     },
-    separatorDot: {
-        width: '6px',
-        height: '6px',
-        borderRadius: '50%',
-        background: '#d1d5db'
+    headingText: {
+        fontSize: '18px',
+        fontWeight: '700',
+        color: '#1F2937',
+        margin: 0,
+        textAlign: 'center'
+    },
+    headingInput: {
+        fontSize: '18px',
+        fontWeight: '700',
+        color: '#1F2937',
+        background: 'transparent',
+        border: 'none',
+        borderBottom: '2px solid #e5e7eb',
+        outline: 'none',
+        flex: 1,
+        padding: '4px 0',
+        textAlign: 'center'
     },
 
     // Module card styles
@@ -805,6 +1037,22 @@ const styles = {
     moduleLabel: { fontWeight: '700', fontSize: '16px', color: '#111827' },
     iconBtn: { background: '#fff', border: '1px solid #e5e7eb', borderRadius: '6px', cursor: 'pointer', padding: '6px 10px', fontSize: '12px', transition: 'all 0.2s' },
     moduleBody: { padding: '28px', background: '#fafbfc' },
+
+    // Drag and drop styles
+    dragHandle: {
+        cursor: 'grab',
+        color: '#9CA3AF',
+        fontSize: '16px',
+        padding: '4px 8px',
+        userSelect: 'none',
+        letterSpacing: '2px'
+    },
+    dropIndicator: {
+        height: '4px',
+        background: 'linear-gradient(90deg, #3B82F6, #6366F1)',
+        borderRadius: '2px',
+        marginBottom: '8px'
+    },
 
     // Section group styles
     sectionGroup: { marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid #e5e7eb' },
