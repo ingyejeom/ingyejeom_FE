@@ -48,7 +48,10 @@ export default function SpaceList() {
     const fetchGroupInfo = async () => {
         try {
             const res = await api.get('/group', { params: { id: groupId } });
-            if (res.data) setGroupInfo(res.data);
+            // 백엔드 응답(groupName)을 프론트엔드 상태(name)에 매핑
+            if (res.data) {
+                setGroupInfo({ ...res.data, name: res.data.groupName || '그룹' });
+            }
         } catch (error) {
             console.error("그룹 정보 로딩 실패:", error);
         }
@@ -85,7 +88,8 @@ export default function SpaceList() {
     const handleGroupUpdate = async () => {
         if (!editGroupName.trim()) { alert('변경할 그룹 이름을 입력해주세요.'); return; }
         try {
-            await api.put('/group', { id: groupId, name: editGroupName.trim() });
+            // 수정 완료: DTO에 맞춰 name 대신 groupName으로 파라미터 전송
+            await api.put('/group', { id: groupId, groupName: editGroupName.trim() });
             alert('그룹 이름이 변경되었습니다.');
             setIsGroupEditModalOpen(false);
             fetchGroupInfo(); // 변경된 이름 다시 불러오기
@@ -149,7 +153,7 @@ export default function SpaceList() {
         }
     };
 
-    // Header 왼쪽 영역 (뒤로가기 대신 홈 아이콘만 배치, 타이틀은 Header 컴포넌트 prop으로 넘겨서 중앙정렬)
+    // Header 왼쪽 영역 (홈 아이콘만 배치, 타이틀은 Header 컴포넌트 prop으로 넘겨서 중앙정렬)
     const customHeaderLeft = (
         <div style={styles.homeIcon} onClick={() => navigate('/')}>
             <span className="material-icons" style={{ color: '#fff', fontSize: '18px' }}>home</span>
@@ -161,7 +165,7 @@ export default function SpaceList() {
             <Header leftContent={customHeaderLeft} title="스페이스 관리" />
 
             <main style={styles.mainContainer}>
-                {/* 그룹 제목 및 관리 버튼 영역 (기존 타이틀 위에 별도로 배치) */}
+                {/* 그룹 제목 및 관리 버튼 영역 */}
                 <div style={styles.headerSection}>
                     <h2 style={styles.groupTitle}>{groupInfo.name}</h2>
                     <div style={styles.groupActions}>
@@ -171,7 +175,7 @@ export default function SpaceList() {
                     </div>
                 </div>
 
-                {/* 복구된 기존 스페이스 목록 타이틀 */}
+                {/* 스페이스 목록 타이틀 */}
                 <h1 style={styles.pageTitle}>스페이스 목록</h1>
                 <div style={styles.listContainer}>
                     {spaces.length > 0 ? (
@@ -204,7 +208,7 @@ export default function SpaceList() {
 
             <footer style={styles.footer}>© 2026 INGYEJEOM. All rights reserved.</footer>
 
-            {/* 기존 초대 모달 */}
+            {/* 초대 모달 */}
             {isModalOpen && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
