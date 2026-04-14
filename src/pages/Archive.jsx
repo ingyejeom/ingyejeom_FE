@@ -51,7 +51,6 @@ export default function Archive() {
             } catch (error) { console.error(error); }
         };
 
-        // 수정된 부분: 페이징 제한 없이 나의 모든 스페이스 목록을 가져오기
         const fetchMySpaces = async () => {
             try {
                 const [adminRes, memberRes] = await Promise.all([
@@ -61,9 +60,11 @@ export default function Archive() {
 
                 const allData = [...(adminRes.data || []), ...(memberRes.data || [])];
 
+                // 변경점: Space.jsx와 동일하게 groupName 추출 및 매핑
                 const spaces = allData.map(item => ({
                     id: item.spaceId,
-                    name: item.workName || item.groupName || '이름 없음'
+                    name: item.workName || item.groupName || '이름 없음',
+                    groupName: item.groupName || '그룹 없음'
                 })).filter(space => space.id != null);
 
                 const uniqueSpaces = Array.from(new Set(spaces.map(s => s.id))).map(id => spaces.find(s => s.id === id));
@@ -122,7 +123,6 @@ export default function Archive() {
         loadHandoverPdfs();
     }, [spaceId]);
 
-    // Check if current user already has a handover
     useEffect(() => {
         if (currentUserId && (latestHandover || historyList.length > 0)) {
             const allHandovers = latestHandover ? [latestHandover, ...historyList] : historyList;
@@ -133,7 +133,6 @@ export default function Archive() {
         }
     }, [currentUserId, latestHandover, historyList]);
 
-    // 2. 파일 목록 별도 로드
     const fetchFiles = async () => {
         if (!spaceId) return;
         try {
@@ -161,9 +160,8 @@ export default function Archive() {
         return () => { isMounted = false; };
     }, [spaceId, currentFolderId]);
 
-    // 3. 실제 파일 업로드 처리
     const handleFileUpload = async () => {
-        if (!selectedFile) {
+        if (!selectedFile || selectedFile.length === 0) {
             alert('업로드할 파일을 선택해주세요.');
             return;
         }
@@ -191,7 +189,6 @@ export default function Archive() {
         }
     };
 
-    // --- [탐색기 핵심 기능] ---
     const enterFolder = (folderId, folderName) => {
         setFolderStack(prev => {
             if (prev[prev.length - 1].id === folderId) return prev;
@@ -247,7 +244,6 @@ export default function Archive() {
         } catch (e) { alert("다운로드 실패"); }
     };
 
-    // --- [텍스트/이미지/PDF 뷰어 기능] ---
     const handlePreview = async (file, handoverMeta = null) => {
         try {
             const res = await api.get(`/file/${file.id}?mode=view`, { responseType: 'blob' });
@@ -277,17 +273,14 @@ export default function Archive() {
         } catch (e) { alert("미리보기를 불러오지 못했습니다."); }
     };
 
-    // Download PDF with structured filename
     const handlePdfDownload = () => {
         if (!previewData || !previewData.blob) return;
 
         let downloadFilename;
         if (previewData.handoverTitle && previewData.handoverDate) {
-            // Use structured filename: {title}_{YYYY-MM-DD}.pdf
             const dateStr = previewData.handoverDate.split('T')[0];
             downloadFilename = `${previewData.handoverTitle}_${dateStr}.pdf`;
         } else {
-            // Fallback to original filename
             downloadFilename = previewData.name || 'document.pdf';
         }
 
@@ -301,7 +294,6 @@ export default function Archive() {
         window.URL.revokeObjectURL(url);
     };
 
-    // --- [드래그 앤 드롭 이벤트 제어] ---
     const handleDragStart = (e, id, type) => {
         e.dataTransfer.setData("text/plain", JSON.stringify({ id, type }));
         e.dataTransfer.effectAllowed = "move";
@@ -344,23 +336,19 @@ export default function Archive() {
         return dateString.split('T')[0].replace(/-/g, '.');
     };
 
-    // Find matching PDF for a handover document
     const findHandoverPdf = (handover) => {
         if (!handoverPdfs.length || !handover) return null;
-
-        // Try to match by title (PDF filename usually contains the handover title)
         const handoverTitle = handover.title?.toLowerCase() || '';
         const handoverDate = handover.createdAt?.split('T')[0] || '';
 
         return handoverPdfs.find(pdf => {
             const pdfName = (pdf.name || pdf.originalFileName || '').toLowerCase();
-            // Match if PDF name contains the handover title or created on similar date
             return pdfName.includes(handoverTitle.substring(0, 10)) ||
-                   (handoverDate && pdfName.includes(handoverDate));
+                (handoverDate && pdfName.includes(handoverDate));
         });
     };
 
-    // 왼쪽: 홈 버튼 + 드롭다운
+    // 드롭다운 수정 이걸로 햇어요
     const customHeaderLeft = (
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={styles.homeIcon} onClick={() => navigate('/')}>
@@ -368,12 +356,19 @@ export default function Archive() {
             </div>
             <div style={styles.dropdownContainer}>
                 <div style={styles.dropdownToggle} onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
-                    <div><p style={styles.dropdownLabel}>현재 공간</p><p style={styles.dropdownTitle}>{currentSpace.name} - {currentSpace.department}</p></div>
+                    <div>
+                        <p style={styles.dropdownLabel}>현재 공간</p>
+                        <p style={styles.dropdownTitle}>{currentSpace.department} - {currentSpace.name}</p>
+                    </div>
                     <span className="material-icons" style={{ color: '#94A3B8' }}>expand_more</span>
                 </div>
                 {isDropdownOpen && (
                     <div style={styles.dropdownMenu}>
-                        {mySpaces.map(space => <div key={space.id} style={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); navigate(`/space/${space.id}/archive`); }}>{space.name}</div>)}
+                        {mySpaces.map(space => (
+                            <div key={space.id} style={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); navigate(`/space/${space.id}/archive`); }}>
+                                {space.groupName} - {space.name}
+                            </div>
+                        ))}
                     </div>
                 )}
             </div>
@@ -396,7 +391,6 @@ export default function Archive() {
                     <div><h2 style={styles.pageTitle}>자료실 관리</h2><p style={styles.pageSubTitle}>팀 내 중요 문서와 인수인계 자료를 관리하는 공간입니다.</p></div>
                 </div>
 
-                {/* 최신 인수인계서 섹션 */}
                 <div style={styles.section}>
                     <div style={styles.sectionHeader}>
                         <h3 style={styles.sectionTitle}>최신 인수인계서</h3>
@@ -413,12 +407,8 @@ export default function Archive() {
                                 </div>
                             </div>
                             <div style={styles.handoverActions}>
-                                {/* 이전 인수인계서 폴더 */}
                                 {historyList.length > 0 && (
-                                    <div
-                                        style={styles.archiveFolderCard}
-                                        onClick={() => setIsPreviousHandoverModalOpen(true)}
-                                    >
+                                    <div style={styles.archiveFolderCard} onClick={() => setIsPreviousHandoverModalOpen(true)}>
                                         <div style={styles.archiveFolderIcon}>
                                             <span className="material-icons" style={{ fontSize: '28px', color: '#94A3B8' }}>folder</span>
                                             <span style={styles.archiveFolderBadge}>{historyList.length}</span>
@@ -430,15 +420,10 @@ export default function Archive() {
                                         <span className="material-icons" style={{ color: '#CBD5E1', fontSize: '16px' }}>chevron_right</span>
                                     </div>
                                 )}
-                                {/* 새 인수인계서 작성 버튼 */}
                                 {userHasHandover ? (
-                                    <button style={styles.disabledBtn} disabled title="이미 인수인계서를 작성하셨습니다">
-                                        작성 완료
-                                    </button>
+                                    <button style={styles.disabledBtn} disabled title="이미 인수인계서를 작성하셨습니다">작성 완료</button>
                                 ) : (
-                                    <button style={styles.createBtn} onClick={() => navigate(`/handover/create?spaceId=${spaceId}`)}>
-                                        + 새 인수인계서
-                                    </button>
+                                    <button style={styles.createBtn} onClick={() => navigate(`/handover/create?spaceId=${spaceId}`)}>+ 새 인수인계서</button>
                                 )}
                             </div>
                         </div>
@@ -446,24 +431,18 @@ export default function Archive() {
                         <div style={styles.emptyCard}>
                             <p style={styles.emptyText}>아직 작성된 인수인계서가 없습니다.</p>
                             {userHasHandover ? (
-                                <button style={styles.disabledBtn} disabled title="이미 인수인계서를 작성하셨습니다">
-                                    작성 완료
-                                </button>
+                                <button style={styles.disabledBtn} disabled title="이미 인수인계서를 작성하셨습니다">작성 완료</button>
                             ) : (
-                                <button style={styles.createBtn} onClick={() => navigate(`/handover/create?spaceId=${spaceId}`)}>
-                                    + 첫 인수인계서 작성
-                                </button>
+                                <button style={styles.createBtn} onClick={() => navigate(`/handover/create?spaceId=${spaceId}`)}>+ 첫 인수인계서 작성</button>
                             )}
                         </div>
                     )}
                 </div>
 
-                {/* 파일 탐색기 섹션 */}
                 <div style={styles.section}>
                     <div style={styles.sectionHeader}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <h3 style={styles.sectionTitle}>파일 탐색기</h3>
-                            {/* 상위 경로(Breadcrumb) 영역 */}
                             <div style={{ display: 'flex', gap: '8px', fontSize: '13px', color: '#64748B' }}>
                                 {folderStack.map((folder, idx) => (
                                     <span key={idx}>
@@ -497,10 +476,7 @@ export default function Archive() {
                             {files.filter(f => !(currentFolderId === null && f.type === 'FOLDER' && f.name === '인수인계서')).map(file => (
                                 <div
                                     key={`${file.type}-${file.id}`}
-                                    style={{
-                                        ...styles.fileCard,
-                                        ...(dragOverTarget === file.id && file.type === 'FOLDER' ? styles.dragOverCard : {})
-                                    }}
+                                    style={{ ...styles.fileCard, ...(dragOverTarget === file.id && file.type === 'FOLDER' ? styles.dragOverCard : {}) }}
                                     draggable
                                     onDragStart={(e) => handleDragStart(e, file.id, file.type)}
                                     onDragOver={file.type === 'FOLDER' ? (e) => handleDragOver(e, file.id) : undefined}
@@ -546,7 +522,6 @@ export default function Archive() {
 
             <footer style={styles.footer}>© 2026 INGYEJEOM. All rights reserved.</footer>
 
-            {/* 파일 업로드 모달 */}
             {isUploadModalOpen && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
@@ -560,7 +535,6 @@ export default function Archive() {
                 </div>
             )}
 
-            {/* 이전 인수인계서 모달 */}
             {isPreviousHandoverModalOpen && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContentWide}>
@@ -569,7 +543,6 @@ export default function Archive() {
                             <button style={styles.closeBtn} onClick={() => setIsPreviousHandoverModalOpen(false)}>✕</button>
                         </div>
                         <div style={styles.previousHandoverContent}>
-                            {/* 인수인계서 문서 섹션 */}
                             <div style={styles.previousSectionHeader}>
                                 <span className="material-icons" style={{ fontSize: '18px', color: '#6366F1' }}>description</span>
                                 <span style={styles.previousSectionTitle}>인수인계서 문서 ({historyList.length})</span>
@@ -585,31 +558,16 @@ export default function Archive() {
                                             </div>
                                             <div style={styles.historyItemActions}>
                                                 {matchingPdf && (
-                                                    <button
-                                                        style={styles.pdfViewBtn}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handlePreview(matchingPdf, { title: item.title, createdAt: item.createdAt });
-                                                        }}
-                                                        title="PDF 보기"
-                                                    >
-                                                        <span className="material-icons" style={{ fontSize: '16px' }}>picture_as_pdf</span>
-                                                        PDF
+                                                    <button style={styles.pdfViewBtn} onClick={(e) => { e.stopPropagation(); handlePreview(matchingPdf, { title: item.title, createdAt: item.createdAt }); }} title="PDF 보기">
+                                                        <span className="material-icons" style={{ fontSize: '16px' }}>picture_as_pdf</span> PDF
                                                     </button>
                                                 )}
-                                                <span
-                                                    className="material-icons"
-                                                    style={{ color: '#94A3B8', cursor: 'pointer' }}
-                                                    onClick={() => { setIsPreviousHandoverModalOpen(false); navigate(`/handover/view/${item.id}`); }}
-                                                >
-                                                    chevron_right
-                                                </span>
+                                                <span className="material-icons" style={{ color: '#94A3B8', cursor: 'pointer' }} onClick={() => { setIsPreviousHandoverModalOpen(false); navigate(`/handover/view/${item.id}`); }}>chevron_right</span>
                                             </div>
                                         </div>
                                     );
                                 })}
                             </div>
-                            {/* 빈 상태 */}
                             {historyList.length === 0 && (
                                 <div style={styles.emptyPreviousState}>
                                     <span className="material-icons" style={{ fontSize: '48px', color: '#CBD5E1' }}>folder_open</span>
@@ -621,24 +579,18 @@ export default function Archive() {
                 </div>
             )}
 
-            {/* 텍스트 / 이미지 / PDF 뷰어 모달 */}
             {previewData && (
                 <div style={styles.modalOverlay} onClick={() => setPreviewData(null)}>
                     <div style={styles.previewContent} onClick={(e) => e.stopPropagation()}>
                         <div style={styles.modalHeader}>
                             <div style={{ flex: 1 }}>
                                 <h3 style={styles.modalTitle}>{previewData.handoverTitle || previewData.name}</h3>
-                                {previewData.handoverDate && (
-                                    <p style={{ fontSize: '12px', color: '#64748B', margin: '4px 0 0 0' }}>
-                                        작성일: {previewData.handoverDate.split('T')[0]}
-                                    </p>
-                                )}
+                                {previewData.handoverDate && <p style={{ fontSize: '12px', color: '#64748B', margin: '4px 0 0 0' }}>작성일: {previewData.handoverDate.split('T')[0]}</p>}
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {previewData.type === 'pdf' && (
                                     <button style={styles.downloadBtn} onClick={handlePdfDownload}>
-                                        <span className="material-icons" style={{ fontSize: '18px' }}>download</span>
-                                        다운로드
+                                        <span className="material-icons" style={{ fontSize: '18px' }}>download</span> 다운로드
                                     </button>
                                 )}
                                 <button style={styles.closeBtn} onClick={() => setPreviewData(null)}>✕</button>
@@ -663,12 +615,9 @@ const styles = {
     dropdownToggle: { display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '4px 8px', borderRadius: '8px' },
     dropdownLabel: { fontSize: '10px', color: '#64748B' },
     dropdownTitle: { fontSize: '14px', fontWeight: '700', color: '#1E293B' },
-    dropdownMenu: { position: 'absolute', top: '100%', left: 0, backgroundColor: '#fff', border: '1px solid #E2E8F0', borderRadius: '8px', width: '200px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', marginTop: '8px', zIndex: 9999 }, // 💡 zIndex 상향 조정
+    dropdownMenu: { position: 'absolute', top: '100%', left: 0, backgroundColor: '#fff', border: '1px solid #E2E8F0', borderRadius: '8px', width: '200px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', marginTop: '8px', zIndex: 9999, maxHeight: '300px', overflowY: 'auto' },
     dropdownItem: { padding: '12px 16px', fontSize: '14px', cursor: 'pointer', borderBottom: '1px solid #F1F5F9' },
-
-    // 챗봇 이동 버튼 스타일
     chatBtn: { display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', backgroundColor: '#fff', border: '1px solid #E0E7FF', borderRadius: '8px', color: '#4F46E5', fontWeight: '600', fontSize: '13px', cursor: 'pointer' },
-
     mainContainer: { maxWidth: '1000px', margin: '40px auto', flex: 1, width: '100%', padding: '0 20px' },
     titleSection: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' },
     pageTitle: { fontSize: '24px', fontWeight: '700', color: '#0F172A', marginBottom: '8px' },
@@ -689,79 +638,14 @@ const styles = {
     handoverActions: { display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'flex-end', borderLeft: '1px solid #E2E8F0', paddingLeft: '24px', minWidth: '200px' },
     textBtn: { background: 'none', border: 'none', color: '#4F46E5', fontSize: '13px', fontWeight: '600', cursor: 'pointer' },
     emptyCard: { backgroundColor: '#F8FAFC', border: '1px dashed #CBD5E1', borderRadius: '12px', padding: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' },
-
-    // 이전 인수인계서 폴더 카드 스타일
-    archiveFolderCard: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        padding: '12px 16px',
-        backgroundColor: '#F8FAFC',
-        border: '1px solid #E2E8F0',
-        borderRadius: '10px',
-        cursor: 'pointer',
-        transition: 'all 0.2s ease',
-        minWidth: '180px'
-    },
-    archiveFolderIcon: {
-        position: 'relative',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-    },
-    archiveFolderBadge: {
-        position: 'absolute',
-        top: '-4px',
-        right: '-6px',
-        backgroundColor: '#64748B',
-        color: '#fff',
-        fontSize: '9px',
-        fontWeight: '600',
-        padding: '1px 5px',
-        borderRadius: '8px',
-        minWidth: '16px',
-        textAlign: 'center'
-    },
-    archiveFolderInfo: {
-        display: 'flex',
-        flexDirection: 'column',
-        flex: 1
-    },
-    archiveFolderLabel: {
-        fontSize: '13px',
-        fontWeight: '600',
-        color: '#475569'
-    },
-    archiveFolderHint: {
-        fontSize: '10px',
-        color: '#94A3B8'
-    },
-
-    // 새 인수인계서 버튼 스타일
-    createBtn: {
-        padding: '12px 20px',
-        backgroundColor: '#4F46E5',
-        color: '#fff',
-        border: 'none',
-        borderRadius: '8px',
-        fontSize: '13px',
-        fontWeight: '600',
-        cursor: 'pointer',
-        transition: 'all 0.2s',
-        width: '100%'
-    },
-    disabledBtn: {
-        padding: '12px 20px',
-        backgroundColor: '#E2E8F0',
-        color: '#94A3B8',
-        border: 'none',
-        borderRadius: '8px',
-        fontSize: '13px',
-        fontWeight: '600',
-        cursor: 'not-allowed',
-        width: '100%'
-    },
-
+    archiveFolderCard: { display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', cursor: 'pointer', transition: 'all 0.2s ease', minWidth: '180px' },
+    archiveFolderIcon: { position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+    archiveFolderBadge: { position: 'absolute', top: '-4px', right: '-6px', backgroundColor: '#64748B', color: '#fff', fontSize: '9px', fontWeight: '600', padding: '1px 5px', borderRadius: '8px', minWidth: '16px', textAlign: 'center' },
+    archiveFolderInfo: { display: 'flex', flexDirection: 'column', flex: 1 },
+    archiveFolderLabel: { fontSize: '13px', fontWeight: '600', color: '#475569' },
+    archiveFolderHint: { fontSize: '10px', color: '#94A3B8' },
+    createBtn: { padding: '12px 20px', backgroundColor: '#4F46E5', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s', width: '100%' },
+    disabledBtn: { padding: '12px 20px', backgroundColor: '#E2E8F0', color: '#94A3B8', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'not-allowed', width: '100%' },
     emptyText: { fontSize: '14px', color: '#64748B' },
     folderGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' },
     footer: { textAlign: 'center', padding: '24px', fontSize: '12px', color: '#94A3B8', borderTop: '1px solid #E2E8F0', backgroundColor: '#fff' },
@@ -784,8 +668,6 @@ const styles = {
     historyTitle: { fontSize: '14px', fontWeight: '700', color: '#1E293B', marginBottom: '4px' },
     historyMeta: { fontSize: '12px', color: '#64748B' },
     pdfViewBtn: { display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 12px', backgroundColor: '#FEE2E2', color: '#DC2626', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' },
-
-    // 이전 인수인계서 모달 스타일
     previousHandoverContent: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' },
     previousSectionHeader: { display: 'flex', alignItems: 'center', gap: '8px', paddingBottom: '12px', borderBottom: '1px solid #E5E7EB', marginBottom: '12px' },
     previousSectionTitle: { fontSize: '14px', fontWeight: '600', color: '#374151' },
