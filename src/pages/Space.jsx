@@ -32,46 +32,49 @@ export default function Space() {
     const [previewUrl, setPreviewUrl] = useState('');
     const [previewPage, setPreviewPage] = useState(null);
 
+    // --- 추가: 스페이스 수정 모달 상태 ---
+    const [isSpaceEditModalOpen, setIsSpaceEditModalOpen] = useState(false);
+    const [editSpaceName, setEditSpaceName] = useState('');
+
+    const fetchCurrentSpace = async () => {
+        try {
+            const res = await api.get('/space', { params: { id: spaceId } });
+            setCurrentSpace({
+                name: res.data.workName || '스페이스',
+                department: res.data.groupName || '그룹'
+            });
+        } catch (error) {
+            setCurrentSpace({ name: '정보를 불러올 수 없습니다.', department: 'Error' });
+        }
+    };
+
+    const fetchMySpaces = async () => {
+        try {
+            const [adminRes, memberRes] = await Promise.all([
+                api.get('/userSpace/getAdminSpaces', { params: { deleted: false } }),
+                api.get('/userSpace/getProfileSpaces', { params: { deleted: false } })
+            ]);
+
+            const allData = [...(adminRes.data || []), ...(memberRes.data || [])];
+
+            const spaces = allData.map(item => ({
+                id: item.spaceId,
+                name: item.workName || item.groupName || '이름 없음',
+                groupName: item.groupName || '그룹 없음'
+            })).filter(space => space.id != null);
+
+            const uniqueSpaces = Array.from(new Set(spaces.map(s => s.id))).map(id => spaces.find(s => s.id === id));
+            setMySpaces(uniqueSpaces);
+        } catch (error) {
+            console.error("스페이스 목록 로딩 실패:", error);
+        }
+    };
+
     useEffect(() => {
         setMessages([]);
         setCursor(null);
         setHasMore(true);
         setIsFetchingHistory(false);
-
-        const fetchCurrentSpace = async () => {
-            try {
-                const res = await api.get('/space', { params: { id: spaceId } });
-                setCurrentSpace({
-                    name: res.data.workName || '스페이스',
-                    department: res.data.groupName || '그룹'
-                });
-            } catch (error) {
-                setCurrentSpace({ name: '정보를 불러올 수 없습니다.', department: 'Error' });
-            }
-        };
-
-        const fetchMySpaces = async () => {
-            try {
-                const [adminRes, memberRes] = await Promise.all([
-                    api.get('/userSpace/getAdminSpaces', { params: { deleted: false } }),
-                    api.get('/userSpace/getProfileSpaces', { params: { deleted: false } })
-                ]);
-
-                const allData = [...(adminRes.data || []), ...(memberRes.data || [])];
-
-                // 드롭다운 노출을 위해 groupName 추가 파싱
-                const spaces = allData.map(item => ({
-                    id: item.spaceId,
-                    name: item.workName || item.groupName || '이름 없음',
-                    groupName: item.groupName || '그룹 없음'
-                })).filter(space => space.id != null);
-
-                const uniqueSpaces = Array.from(new Set(spaces.map(s => s.id))).map(id => spaces.find(s => s.id === id));
-                setMySpaces(uniqueSpaces);
-            } catch (error) {
-                console.error("스페이스 목록 로딩 실패:", error);
-            }
-        };
 
         const fetchFiles = async () => {
             try {
@@ -244,28 +247,58 @@ export default function Space() {
         }
     };
 
+    // --- 추가: 스페이스 이름 수정 처리 ---
+    const handleSpaceUpdate = async () => {
+        if (!editSpaceName.trim()) { alert('변경할 스페이스 이름을 입력해주세요.'); return; }
+        try {
+            await api.put('/space', { id: spaceId, workName: editSpaceName.trim() });
+            alert('스페이스 이름이 변경되었습니다.');
+            setIsSpaceEditModalOpen(false);
+            fetchCurrentSpace();
+            fetchMySpaces();
+        } catch (error) {
+            alert('스페이스 수정에 실패했습니다.');
+        }
+    };
+
     const customHeaderLeft = (
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={styles.homeIcon} onClick={() => navigate('/')}>
                 <span className="material-icons" style={{ color: '#fff', fontSize: '18px' }}>home</span>
             </div>
-            <div style={styles.dropdownContainer}>
-                <div style={styles.dropdownToggle} onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
-                    <div>
-                        <p style={styles.dropdownLabel}>현재 공간</p>
-                        <p style={styles.dropdownTitle}>{currentSpace.department} - {currentSpace.name}</p>
+
+            {/* 추가: 드롭다운과 수정 버튼을 묶음 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={styles.dropdownContainer}>
+                    <div style={styles.dropdownToggle} onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
+                        <div>
+                            <p style={styles.dropdownLabel}>현재 공간</p>
+                            <p style={styles.dropdownTitle}>{currentSpace.department} - {currentSpace.name}</p>
+                        </div>
+                        <span className="material-icons" style={{ color: '#94A3B8' }}>expand_more</span>
                     </div>
-                    <span className="material-icons" style={{ color: '#94A3B8' }}>expand_more</span>
+                    {isDropdownOpen && (
+                        <div style={styles.dropdownMenu}>
+                            {mySpaces.map(space => (
+                                <div key={space.id} style={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); navigate(`/space/${space.id}`); }}>
+                                    {space.groupName} - {space.name}
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
-                {isDropdownOpen && (
-                    <div style={styles.dropdownMenu}>
-                        {mySpaces.map(space => (
-                            <div key={space.id} style={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); navigate(`/space/${space.id}`); }}>
-                                {space.groupName} - {space.name}
-                            </div>
-                        ))}
-                    </div>
-                )}
+
+                {/* 추가: 스페이스 이름 수정 버튼 */}
+                <button
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex' }}
+                    onClick={() => {
+                        setEditSpaceName(currentSpace.name);
+                        setIsSpaceEditModalOpen(true);
+                    }}
+                    title="스페이스 이름 수정"
+                >
+                    <span className="material-icons" style={{ color: '#94A3B8', fontSize: '16px' }}>edit</span>
+                </button>
             </div>
         </div>
     );
@@ -349,6 +382,7 @@ export default function Space() {
                 </div>
                 <p style={styles.inputHelp}>계미나이는 실수를 할 수 있습니다. 중요한 정보는 파일 원본을 확인해주세요.</p>
             </footer>
+
             {previewFile && (
                 <div style={styles.modalOverlay} onClick={closePreview}>
                     <div style={styles.previewContent} onClick={(e) => e.stopPropagation()}>
@@ -364,6 +398,26 @@ export default function Space() {
                                 style={{ width: '100%', height: '70vh', border: 'none', backgroundColor: '#fff' }}
                                 title="document preview"
                             />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 추가: 스페이스 이름 수정 모달 */}
+            {isSpaceEditModalOpen && (
+                <div style={styles.modalOverlay}>
+                    <div style={styles.modalContentSmall}>
+                        <h2 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '16px', color: '#0F172A' }}>스페이스 이름 수정</h2>
+                        <input
+                            type="text"
+                            style={{ width: '100%', padding: '12px', border: '1px solid #E2E8F0', borderRadius: '8px', marginBottom: '24px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
+                            placeholder="새 스페이스 이름"
+                            value={editSpaceName}
+                            onChange={(e) => setEditSpaceName(e.target.value)}
+                        />
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                            <button style={{ padding: '10px 20px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }} onClick={() => setIsSpaceEditModalOpen(false)}>취소</button>
+                            <button style={{ padding: '10px 20px', backgroundColor: '#4F46E5', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }} onClick={handleSpaceUpdate}>수정 완료</button>
                         </div>
                     </div>
                 </div>
@@ -411,6 +465,7 @@ const styles = {
     inputHelp: { textAlign: 'center', fontSize: '12px', color: '#94A3B8', marginTop: '12px' },
     modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
     previewContent: { backgroundColor: '#fff', padding: '32px', borderRadius: '12px', width: '80%', maxWidth: '900px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' },
+    modalContentSmall: { backgroundColor: '#fff', padding: '32px', borderRadius: '12px', width: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' },
     modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' },
     modalTitle: { fontSize: '20px', fontWeight: '700', color: '#0F172A', margin: 0 },
     closeBtn: { background: 'none', border: 'none', fontSize: '20px', color: '#64748B', cursor: 'pointer' },

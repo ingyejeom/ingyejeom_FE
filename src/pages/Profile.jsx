@@ -14,6 +14,11 @@ export default function Profile() {
     const [selectedSpaceId, setSelectedSpaceId] = useState(null);
     const [inviteEmail, setInviteEmail] = useState('');
 
+    // --- 추가: 스페이스 수정 모달 상태 ---
+    const [isSpaceEditModalOpen, setIsSpaceEditModalOpen] = useState(false);
+    const [editSpaceName, setEditSpaceName] = useState('');
+    const [editingSpaceId, setEditingSpaceId] = useState(null);
+
     useEffect(() => {
         const savedId = localStorage.getItem("loginId");
         loadMyProfile(savedId);
@@ -111,6 +116,25 @@ export default function Profile() {
         }
     };
 
+    // --- 추가: 스페이스 이름 수정 핸들러 ---
+    const handleOpenSpaceEdit = (spaceId, currentName) => {
+        setEditingSpaceId(spaceId);
+        setEditSpaceName(currentName);
+        setIsSpaceEditModalOpen(true);
+    };
+
+    const handleSpaceUpdate = async () => {
+        if (!editSpaceName.trim()) { alert('변경할 스페이스 이름을 입력해주세요.'); return; }
+        try {
+            await api.put('/space', { id: editingSpaceId, workName: editSpaceName.trim() });
+            alert('스페이스 이름이 변경되었습니다.');
+            setIsSpaceEditModalOpen(false);
+            loadMySpaces(); // 스페이스 목록 새로고침
+        } catch (error) {
+            alert('스페이스 수정에 실패했습니다.');
+        }
+    };
+
     return (
         <div style={styles.pageBackground}>
             <Header
@@ -167,7 +191,6 @@ export default function Profile() {
                                             <h4 style={styles.groupName}>{group.name}</h4>
                                             <p style={styles.groupDesc}>{group.description}</p>
                                         </div>
-                                        {/* 수정: 경로 spacelist로 변경 */}
                                         <button style={styles.manageBtn} onClick={() => navigate(`/group/spacelist/${group.id}`)}>그룹 관리</button>
                                     </div>
                                 </div>
@@ -193,8 +216,6 @@ export default function Profile() {
                                 <div key={`member-${space.id}-${idx}`} style={styles.groupCard}>
                                     <div style={styles.groupHeader}>
                                         <span style={styles.badgeMember}>{space.roleLabel}</span>
-                                        {/* 스페이스 코드 */}
-                                        {/* {space.code && <span style={styles.spaceCode}>코드: {space.code}</span>} */}
                                     </div>
                                     <div style={styles.groupBody}>
                                         <div>
@@ -202,7 +223,11 @@ export default function Profile() {
                                             <p style={styles.groupDesc}>{space.name}</p>
                                             <p style={styles.adminNameText}>관리자: {space.adminName}</p>
                                         </div>
-                                        <button style={styles.handoverBtn} onClick={() => handleOpenHandoverModal(space.spaceId)}>인계하기</button>
+                                        {/* 추가: 수정 버튼과 인계 버튼 컨테이너 */}
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                            <button style={{ ...styles.handoverBtn, backgroundColor: '#EFF6FF', color: '#2563EB', borderColor: '#DBEAFE' }} onClick={() => handleOpenSpaceEdit(space.spaceId, space.description)}>이름 수정</button>
+                                            <button style={styles.handoverBtn} onClick={() => handleOpenHandoverModal(space.spaceId)}>인계하기</button>
+                                        </div>
                                     </div>
                                 </div>
                             ))
@@ -224,6 +249,26 @@ export default function Profile() {
                     </div>
                 </div>
             )}
+
+            {/* 추가: 스페이스 이름 수정 모달 */}
+            {isSpaceEditModalOpen && (
+                <div style={styles.modalOverlay}>
+                    <div style={styles.modalContent}>
+                        <h2 style={styles.modalTitle}>스페이스 이름 수정</h2>
+                        <input
+                            type="text"
+                            style={styles.modalInput}
+                            placeholder="새 스페이스 이름"
+                            value={editSpaceName}
+                            onChange={(e) => setEditSpaceName(e.target.value)}
+                        />
+                        <div style={styles.modalActions}>
+                            <button style={styles.modalCancel} onClick={() => setIsSpaceEditModalOpen(false)}>취소</button>
+                            <button style={styles.modalConfirm} onClick={handleSpaceUpdate}>수정 완료</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -233,7 +278,6 @@ const styles = {
     logoutBtn: { padding: '8px 16px', backgroundColor: '#FFFFFF', color: '#EF4444', border: '1px solid #EF4444', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' },
     editBtn: { padding: '6px 12px', backgroundColor: '#F3F4F6', color: '#374151', borderRadius: '6px', fontSize: '12px', fontWeight: '600', border: '1px solid #D1D5DB', cursor: 'pointer' },
 
-    // 3분할 Grid 레이아웃 적용
     mainContainer: { flex: 1, maxWidth: '1400px', margin: '40px auto', width: '100%', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', padding: '0 24px' },
     panel: { backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '32px', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 160px)' },
 
@@ -271,7 +315,7 @@ const styles = {
     modalContent: { backgroundColor: '#fff', padding: '32px', borderRadius: '12px', width: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' },
     modalTitle: { fontSize: '18px', fontWeight: '700', marginBottom: '8px', color: '#111827' },
     modalDesc: { fontSize: '14px', color: '#64748B', marginBottom: '24px' },
-    modalInput: { width: '100%', padding: '14px', border: '1px solid #D1D5DB', borderRadius: '8px', marginBottom: '24px', outline: 'none' },
+    modalInput: { width: '100%', padding: '14px', border: '1px solid #D1D5DB', borderRadius: '8px', marginBottom: '24px', outline: 'none', boxSizing: 'border-box' },
     modalActions: { display: 'flex', justifyContent: 'flex-end', gap: '12px' },
     modalCancel: { padding: '10px 20px', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' },
     modalConfirm: { padding: '10px 20px', backgroundColor: '#3B82F6', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }
