@@ -14,7 +14,7 @@ export default function Profile() {
     const [selectedSpaceId, setSelectedSpaceId] = useState(null);
     const [inviteEmail, setInviteEmail] = useState('');
 
-    // --- 추가: 스페이스 수정 모달 상태 ---
+    // --- 스페이스 수정 모달 상태 ---
     const [isSpaceEditModalOpen, setIsSpaceEditModalOpen] = useState(false);
     const [editSpaceName, setEditSpaceName] = useState('');
     const [editingSpaceId, setEditingSpaceId] = useState(null);
@@ -116,7 +116,7 @@ export default function Profile() {
         }
     };
 
-    // --- 추가: 스페이스 이름 수정 핸들러 ---
+    // --- 스페이스 이름 수정 핸들러 ---
     const handleOpenSpaceEdit = (spaceId, currentName) => {
         setEditingSpaceId(spaceId);
         setEditSpaceName(currentName);
@@ -219,15 +219,22 @@ export default function Profile() {
                                     </div>
                                     <div style={styles.groupBody}>
                                         <div>
-                                            <h4 style={styles.groupName}>{space.description}</h4>
+                                            {/* 연필 아이콘을 스페이스 이름 옆으로 이동 */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                                                <h4 style={{ ...styles.groupName, marginBottom: 0 }}>{space.description}</h4>
+                                                <button
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0', display: 'flex', alignItems: 'center' }}
+                                                    onClick={() => handleOpenSpaceEdit(space.spaceId, space.description)}
+                                                    title="스페이스 이름 수정"
+                                                >
+                                                    <span className="material-icons" style={{ color: '#9CA3AF', fontSize: '16px' }}>edit</span>
+                                                </button>
+                                            </div>
                                             <p style={styles.groupDesc}>{space.name}</p>
                                             <p style={styles.adminNameText}>관리자: {space.adminName}</p>
                                         </div>
-                                        {/* 추가: 수정 버튼과 인계 버튼 컨테이너 */}
-                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                            <button style={{ ...styles.handoverBtn, backgroundColor: '#EFF6FF', color: '#2563EB', borderColor: '#DBEAFE' }} onClick={() => handleOpenSpaceEdit(space.spaceId, space.description)}>이름 수정</button>
-                                            <button style={styles.handoverBtn} onClick={() => handleOpenHandoverModal(space.spaceId)}>인계하기</button>
-                                        </div>
+                                        {/* 우측에는 인계하기 버튼만 남김 */}
+                                        <button style={styles.handoverBtn} onClick={() => handleOpenHandoverModal(space.spaceId)}>인계하기</button>
                                     </div>
                                 </div>
                             ))
@@ -250,7 +257,7 @@ export default function Profile() {
                 </div>
             )}
 
-            {/* 추가: 스페이스 이름 수정 모달 */}
+            {/* 스페이스 이름 수정 모달 */}
             {isSpaceEditModalOpen && (
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContent}>
