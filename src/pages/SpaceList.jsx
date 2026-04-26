@@ -21,6 +21,8 @@ export default function SpaceList() {
 
     const [isAddSpaceModalOpen, setIsAddSpaceModalOpen] = useState(false);
     const [newSpaceName, setNewSpaceName] = useState('');
+    // 담당자 이메일 상태 추가
+    const [newSpaceEmail, setNewSpaceEmail] = useState('');
 
     const [isSpaceEditModalOpen, setIsSpaceEditModalOpen] = useState(false);
     const [editingSpace, setEditingSpace] = useState(null);
@@ -113,10 +115,16 @@ export default function SpaceList() {
     const handleAddSpace = async () => {
         if (!newSpaceName.trim()) { alert('스페이스(업무) 명을 입력해주세요.'); return; }
         try {
-            await api.post('/space', { groupId: groupId, workName: newSpaceName.trim() });
+            // 수정 완료: 담당자 이메일(userEmail)을 포함하여 전송
+            await api.post('/space', {
+                groupId: groupId,
+                workName: newSpaceName.trim(),
+                userEmail: newSpaceEmail.trim()
+            });
             alert('스페이스가 생성되었습니다.');
             setIsAddSpaceModalOpen(false);
             setNewSpaceName('');
+            setNewSpaceEmail(''); // 입력 필드 초기화
             fetchSpaces();
         } catch (error) {
             alert('스페이스 생성에 실패했습니다.');
@@ -244,8 +252,14 @@ export default function SpaceList() {
                         <h2 style={styles.modalTitle}>스페이스 추가</h2>
                         <p style={styles.modalDesc}>새로운 업무 스페이스 이름을 입력하세요.</p>
                         <input type="text" style={styles.modalInput} placeholder="스페이스(업무) 명" value={newSpaceName} onChange={(e) => setNewSpaceName(e.target.value)} />
+
+                        {/* 담당자 이메일 입력창 추가 */}
+                        <p style={{ ...styles.modalDesc, marginTop: '16px' }}>담당자 이메일 (선택)</p>
+                        <p style={{ fontSize: '12px', color: '#94A3B8', marginBottom: '8px' }}>비워둘 시 그룹 관리자가 자동으로 배정됩니다.</p>
+                        <input type="email" style={styles.modalInput} placeholder="manager@example.com" value={newSpaceEmail} onChange={(e) => setNewSpaceEmail(e.target.value)} />
+
                         <div style={styles.modalActions}>
-                            <button style={styles.modalCancel} onClick={() => setIsAddSpaceModalOpen(false)}>취소</button>
+                            <button style={styles.modalCancel} onClick={() => { setIsAddSpaceModalOpen(false); setNewSpaceName(''); setNewSpaceEmail(''); }}>취소</button>
                             <button style={styles.modalConfirm} onClick={handleAddSpace}>추가</button>
                         </div>
                     </div>
