@@ -8,4 +8,5 @@ export default defineConfig({
             jsxRuntime: 'automatic' // 모든 파일에서 import React 생략 가능하게 해줌
         })
     ],
+    base: '/',
 })
