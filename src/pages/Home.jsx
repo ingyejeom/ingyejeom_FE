@@ -111,8 +111,12 @@ export default function Home() {
                                     <div style={{ ...styles.iconWrapper, backgroundColor: group.iconBg || '#EFF6FF' }}>
                                         <span style={styles.icon}>{group.icon || '🏢'}</span>
                                     </div>
-                                    <h3 style={styles.cardTitle}>{group.name}</h3>
-                                    <p style={styles.cardSubName}>{group.subName}</p>
+
+                                    {/* (상근) 변경 */}
+                                    <div style={styles.titleContainer}>
+                                        <span style={styles.cardTitle}>{group.name}</span>
+                                        <span style={styles.cardTitle}>{group.subName}</span>
+                                    </div>
 
                                     <div style={styles.divider}></div>
 
@@ -169,12 +173,44 @@ const styles = {
     subtitle: { fontSize: '14px', color: '#6B7280' },
     contentWrapper: { flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', paddingRight: '8px' },
     gridContainer: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px', paddingBottom: '32px' },
-    card: { backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', transition: 'transform 0.2s, boxShadow 0.2s' },
+    // card: { backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', transition: 'transform 0.2s, boxShadow 0.2s' },    
     iconWrapper: { width: '64px', height: '64px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' },
     icon: { fontSize: '32px' },
-    cardTitle: { fontSize: '18px', fontWeight: '700', color: '#111827', textAlign: 'center', marginBottom: '4px' },
-    cardSubName: { fontSize: '14px', color: '#4B5563', marginBottom: '16px', textAlign: 'center', wordBreak: 'keep-all' },
-    divider: { width: '100%', height: '1px', backgroundColor: '#F3F4F6', margin: '16px 0' },
+    // cardTitle: { fontSize: '18px', fontWeight: '700', color: '#111827', textAlign: 'center', marginBottom: '4px' },
+    // cardSubName: { fontSize: '14px', color: '#4B5563', marginBottom: '16px', textAlign: 'center', wordBreak: 'keep-all' },
+
+    // (상근) 변경
+    titleContainer: { 
+        display: 'flex', 
+        flexWrap: 'wrap',           // 핵심: 공간이 부족하면 자동으로 다음 줄로 넘김
+        justifyContent: 'center',   // 항상 가운데 정렬 유지
+        columnGap: '8px',           // 한 줄에 있을 때 두 단어 사이의 간격
+        marginBottom: '16px',
+        width: '100%',
+        minHeight: '68px' 
+    },
+    cardTitle: { 
+        fontSize: '16px',           // 두 텍스트 모두 동일한 크기 적용
+        fontWeight: '700', 
+        color: '#111827', 
+        textAlign: 'center', 
+        wordBreak: 'keep-all',      // 단어 중간에 어색하게 잘리지 않도록 보호
+        margin: 0 
+    },
+    card: { 
+        height: '100%', 
+        boxSizing: 'border-box', 
+        backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', transition: 'transform 0.2s, boxShadow 0.2s' 
+    },
+    divider: { 
+        width: '100%', 
+        height: '1px', 
+        backgroundColor: '#F3F4F6', 
+        marginTop: 'auto',      // 핵심: 남는 공간을 모두 위쪽 여백으로 사용하여 아래로 밀어냄
+        marginBottom: '16px' 
+    },
+
+    // divider: { width: '100%', height: '1px', backgroundColor: '#F3F4F6', margin: '16px 0' },
     cardFooter: { width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
     department: { fontSize: '12px', color: '#9CA3AF', fontWeight: '600' },
     statusBadge: { fontSize: '12px', padding: '4px 8px', borderRadius: '12px', fontWeight: '600' },

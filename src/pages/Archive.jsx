@@ -25,6 +25,9 @@ export default function Archive() {
     const [currentFolderId, setCurrentFolderId] = useState(null);
     const [folderStack, setFolderStack] = useState([{ id: null, name: 'Home' }]);
 
+    // (상근) [추가] 결재(서명) ID 상태
+    const [activeApprovalId, setActiveApprovalId] = useState(null);
+
     // --- [추가] 드래그 앤 드롭 및 뷰어 상태 ---
     const [dragOverTarget, setDragOverTarget] = useState(null);
     const [previewData, setPreviewData] = useState(null);
@@ -48,6 +51,12 @@ export default function Archive() {
                     name: res.data.workName || '스페이스',
                     department: res.data.groupName || '그룹'
                 });
+
+                // (상근) 결재건(서명)이 존재하면 상태에 저장하여 버튼을 활성화
+                if(res.data.currentApprovalId){
+                    setActiveApprovalId(res.data.currentApprovalId);
+                }
+
             } catch (error) { console.error(error); }
         };
 
@@ -76,7 +85,8 @@ export default function Archive() {
 
         const loadCurrentUser = async () => {
             try {
-                const res = await api.get('/user/me');
+                // API가 /user/me 로 되어있어서 변경
+                const res = await api.get('/user');
                 if (res.data && res.data.id) {
                     setCurrentUserId(res.data.id);
                 }
@@ -229,6 +239,23 @@ export default function Archive() {
         } catch (e) { alert("삭제 실패"); }
     };
 
+    // (상근) 파일 및 폴더 이름 수정 함수
+    const renameItem = async (id, type, currentName) => {
+        const newName = prompt(`새로운 ${type === 'FOLDER' ? '폴더' : '파일'} 이름을 입력하세요:`, currentName);
+        if (!newName || newName.trim() === "" || newName.trim() === currentName) return;
+
+        try {
+            if (type === 'FOLDER') {
+                await api.put('/file/folder', { id: id, name: newName.trim() });
+            } else {
+                await api.put('/file', { id: id, originalFileName: newName.trim() });
+            }
+            fetchFiles(); 
+        } catch (error) {
+            alert("이름 변경에 실패했습니다.");
+        }
+    };
+
     const handleDownload = async (file) => {
         try {
             const res = await api.get(`/file/${file.id}?mode=download`, { responseType: 'blob' });
@@ -376,11 +403,30 @@ export default function Archive() {
     );
 
     // 오른쪽: 챗봇 화면으로 돌아가기 버튼
-    const customHeaderRight = (
+    // (상근) 수정된 customHeaderRight
+        // 필요에 의해 함수 코드 전체 수정
+    
+    /*    const customHeaderRight = (
         <button style={styles.chatBtn} onClick={() => navigate(`/space/${spaceId}`)}>
             <span className="material-icons" style={{ fontSize: '18px' }}>smart_toy</span>챗봇
         </button>
-    );
+    ); */
+    const customHeaderRight = (
+    <div style={{ display: 'flex', gap: '8px' }}>
+        {/* 서명하기 버튼 추가 */}
+        <button 
+            style={activeApprovalId ? styles.signBtnActive : styles.signBtnDisabled} 
+            disabled={!activeApprovalId}
+            onClick={() => navigate(`/approval/${activeApprovalId}`)}
+        >
+            📝 서명하기
+        </button>
+        {/* 기존 챗봇 버튼 */}
+        <button style={styles.chatBtn} onClick={() => navigate(`/space/${spaceId}`)}>
+            <span className="material-icons" style={{ fontSize: '18px' }}>smart_toy</span>챗봇
+        </button>
+    </div>
+);
 
     return (
         <div style={styles.pageBackground}>
@@ -450,8 +496,7 @@ export default function Archive() {
                                             style={{
                                                 cursor: idx === folderStack.length - 1 ? 'default' : 'pointer',
                                                 color: idx === folderStack.length - 1 ? '#0F172A' : '#4F46E5',
-                                                fontWeight: idx === folderStack.length - 1 ? 'bold' : 'normal',
-                                                ...(dragOverTarget === folder.id ? styles.dragOverText : {})
+                                                fontWeight: idx === folderStack.length - 1 ? 'bold' : 'normal'
                                             }}
                                             onClick={() => idx !== folderStack.length - 1 && goToFolder(idx)}
                                             onDragOver={(e) => handleDragOver(e, folder.id)}
@@ -490,9 +535,17 @@ export default function Archive() {
                                                 <h4 style={styles.fileName} title={file.name}>{formatFileName(file.name)}</h4>
                                                 <p style={styles.fileSize}>폴더</p>
                                             </div>
-                                            <div style={styles.actionButtons}>
-                                                <button style={styles.actionBtn} onClick={() => enterFolder(file.id, file.name)}>열기</button>
-                                                <button style={styles.actionBtnDel} onClick={() => deleteItem(file.id, 'FOLDER')}>삭제</button>
+                                            {/* (상근) 폴더 액션 버튼 교체 */}
+                                            <div style={styles.iconActions}>
+                                                <button style={styles.iconBtn} onClick={() => enterFolder(file.id, file.name)} title="열기">
+                                                    <span className="material-icons" style={styles.actionIcon}>arrow_forward</span>
+                                                </button>
+                                                <button style={styles.iconBtn} onClick={() => renameItem(file.id, 'FOLDER', file.name)} title="이름 변경">
+                                                    <span className="material-icons" style={styles.actionIcon}>edit</span>
+                                                </button>
+                                                <button style={styles.iconBtnDel} onClick={() => deleteItem(file.id, 'FOLDER')} title="삭제">
+                                                    <span className="material-icons" style={styles.actionIcon}>delete</span>
+                                                </button>
                                             </div>
                                         </>
                                     ) : (
@@ -502,10 +555,20 @@ export default function Archive() {
                                                 <h4 style={styles.fileName} title={file.name || file.originalFileName}>{formatFileName(file.name || file.originalFileName)}</h4>
                                                 <p style={styles.fileSize}>{(file.size / 1024).toFixed(1)} KB • {file.uploaderName}</p>
                                             </div>
-                                            <div style={styles.actionButtons}>
-                                                <button style={styles.actionBtn} onClick={() => handlePreview(file)}>보기</button>
-                                                <button style={styles.actionBtn} onClick={() => handleDownload(file)}>다운</button>
-                                                <button style={styles.actionBtnDel} onClick={() => deleteItem(file.id, 'FILE')}>삭제</button>
+                                            {/* (상근) 파일 액션 버튼 교체 */}
+                                            <div style={styles.iconActions}>
+                                                <button style={styles.iconBtn} onClick={() => handlePreview(file)} title="미리보기">
+                                                    <span className="material-icons" style={styles.actionIcon}>visibility</span>
+                                                </button>
+                                                <button style={styles.iconBtn} onClick={() => handleDownload(file)} title="다운로드">
+                                                    <span className="material-icons" style={styles.actionIcon}>download</span>
+                                                </button>
+                                                <button style={styles.iconBtn} onClick={() => renameItem(file.id, 'FILE', file.name || file.originalFileName)} title="이름 변경">
+                                                    <span className="material-icons" style={styles.actionIcon}>edit</span>
+                                                </button>
+                                                <button style={styles.iconBtnDel} onClick={() => deleteItem(file.id, 'FILE')} title="삭제">
+                                                    <span className="material-icons" style={styles.actionIcon}>delete</span>
+                                                </button>
                                             </div>
                                         </>
                                     )}
@@ -579,28 +642,42 @@ export default function Archive() {
                 </div>
             )}
 
+            {/* (상근) 모달 변경 */}
             {previewData && (
                 <div style={styles.modalOverlay} onClick={() => setPreviewData(null)}>
-                    <div style={styles.previewContent} onClick={(e) => e.stopPropagation()}>
-                        <div style={styles.modalHeader}>
-                            <div style={{ flex: 1 }}>
-                                <h3 style={styles.modalTitle}>{previewData.handoverTitle || previewData.name}</h3>
-                                {previewData.handoverDate && <p style={{ fontSize: '12px', color: '#64748B', margin: '4px 0 0 0' }}>작성일: {previewData.handoverDate.split('T')[0]}</p>}
+                    <div style={styles.previewContainer} onClick={(e) => e.stopPropagation()}>
+                        
+                        <div style={styles.previewHeader}>
+                            <div style={{ flex: 1, overflow: 'hidden' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span className="material-icons" style={{ color: '#4F46E5', fontSize: '22px' }}>
+                                        {previewData.type === 'pdf' ? 'picture_as_pdf' : previewData.type === 'image' ? 'image' : 'description'}
+                                    </span>
+                                    <h3 style={styles.previewTitle} title={previewData.handoverTitle || previewData.name}>
+                                        {previewData.handoverTitle || previewData.name}
+                                    </h3>
+                                </div>
+                                {previewData.handoverDate && <p style={styles.previewSub}>작성일: {previewData.handoverDate.split('T')[0]}</p>}
                             </div>
+                            
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 {previewData.type === 'pdf' && (
-                                    <button style={styles.downloadBtn} onClick={handlePdfDownload}>
+                                    <button style={styles.previewDownloadBtn} onClick={handlePdfDownload} title="다운로드">
                                         <span className="material-icons" style={{ fontSize: '18px' }}>download</span> 다운로드
                                     </button>
                                 )}
-                                <button style={styles.closeBtn} onClick={() => setPreviewData(null)}>✕</button>
+                                <button style={styles.previewCloseBtn} onClick={() => setPreviewData(null)} title="닫기">
+                                    <span className="material-icons" style={{ fontSize: '20px' }}>close</span>
+                                </button>
                             </div>
                         </div>
+
                         <div style={styles.previewBody}>
-                            {previewData.type === 'image' && <img src={previewData.url} alt="preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />}
-                            {previewData.type === 'pdf' && <iframe src={`${previewData.url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`} style={{ width: '100%', height: '70vh', border: 'none', backgroundColor: '#fff' }} title="pdf-viewer" />}
-                            {previewData.type === 'text' && <div style={styles.textBox}>{previewData.content}</div>}
+                            {previewData.type === 'image' && <img src={previewData.url} alt="preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '4px' }} />}
+                            {previewData.type === 'pdf' && <iframe src={`${previewData.url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`} style={{ width: '100%', height: '100%', border: 'none', backgroundColor: '#F8FAFC' }} title="pdf-viewer" />}
+                            {previewData.type === 'text' && <div style={styles.previewTextBox}>{previewData.content}</div>}
                         </div>
+                        
                     </div>
                 </div>
             )}
@@ -649,7 +726,7 @@ const styles = {
     emptyText: { fontSize: '14px', color: '#64748B' },
     folderGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' },
     footer: { textAlign: 'center', padding: '24px', fontSize: '12px', color: '#94A3B8', borderTop: '1px solid #E2E8F0', backgroundColor: '#fff' },
-    modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
+    // modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
     modalContent: { backgroundColor: '#fff', padding: '32px', borderRadius: '12px', width: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' },
     modalContentWide: { backgroundColor: '#fff', padding: '32px', borderRadius: '12px', width: '600px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' },
     modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' },
@@ -678,12 +755,40 @@ const styles = {
     fileIcon: { color: '#6366F1', fontSize: '48px' },
     fileName: { fontSize: '14px', fontWeight: '700', color: '#1E293B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: '4px 0', width: '100%' },
     fileSize: { fontSize: '12px', color: '#64748B', margin: 0 },
-    actionButtons: { display: 'flex', gap: '6px', width: '100%', marginTop: 'auto', paddingTop: '12px', borderTop: '1px solid #F1F5F9' },
-    actionBtn: { flex: 1, padding: '8px 0', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: '600' },
-    actionBtnDel: { flex: 1, padding: '8px 0', backgroundColor: '#FEE2E2', color: '#EF4444', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: '600' },
+    // actionButtons: { display: 'flex', gap: '6px', width: '100%', marginTop: 'auto', paddingTop: '12px', borderTop: '1px solid #F1F5F9' },
+    // actionBtn: { flex: 1, padding: '8px 0', backgroundColor: '#F1F5F9', color: '#475569', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: '600' },
+    // actionBtnDel: { flex: 1, padding: '8px 0', backgroundColor: '#FEE2E2', color: '#EF4444', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: '600' },
     dragOverCard: { border: '2px dashed #4F46E5', backgroundColor: '#EEF2FF', transform: 'scale(1.05)', zIndex: 5 },
-    dragOverText: { outline: '2px dashed #4F46E5', backgroundColor: '#EEF2FF', padding: '2px 4px', borderRadius: '4px' },
-    previewContent: { backgroundColor: '#fff', padding: '32px', borderRadius: '12px', width: '80%', maxWidth: '900px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' },
-    previewBody: { flex: 1, overflow: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#222', borderRadius: '8px', padding: '20px' },
-    textBox: { backgroundColor: '#fff', padding: '40px', width: '100%', minHeight: '100%', whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '14px', color: '#333', lineHeight: '1.6', borderRadius: '4px', boxShadow: '0 0 10px rgba(0,0,0,0.3)' }
+    // dragOverText: { outline: '2px dashed #4F46E5', backgroundColor: '#EEF2FF', padding: '2px 4px', borderRadius: '4px' },
+    // previewContent: { backgroundColor: '#fff', padding: '32px', borderRadius: '12px', width: '80%', maxWidth: '900px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' },
+    // previewBody: { flex: 1, overflow: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#222', borderRadius: '8px', padding: '20px' },
+    // textBox: { backgroundColor: '#fff', padding: '40px', width: '100%', minHeight: '100%', whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '14px', color: '#333', lineHeight: '1.6', borderRadius: '4px', boxShadow: '0 0 10px rgba(0,0,0,0.3)' },
+
+    // (상근) 서명 버튼 스타일 추가
+    signBtnActive: { display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', backgroundColor: '#F59E0B', border: '1px solid #D97706', borderRadius: '8px', color: '#fff', fontWeight: '600', fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s' },
+    signBtnDisabled: { display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', backgroundColor: '#E2E8F0', border: '1px solid #CBD5E1', borderRadius: '8px', color: '#94A3B8', fontWeight: '600', fontSize: '13px', cursor: 'not-allowed' },
+
+    // (상근) 카드 아이콘 액션 버튼 스타일 추가
+    iconActions: { display: 'flex', gap: '8px', width: '100%', marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid #F1F5F9', justifyContent: 'center' },
+    iconBtn: { background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: '4px', borderRadius: '4px', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+    iconBtnDel: { background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: '4px', borderRadius: '4px', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+    actionIcon: { fontSize: '20px' },
+
+    // (상근) 미리보기 모달 스타일 추가
+    modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999 },
+    previewContainer: { backgroundColor: '#ffffff', borderRadius: '16px', width: '90%', maxWidth: '1000px', height: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden' },
+    
+    previewHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', backgroundColor: '#ffffff', borderBottom: '1px solid #E2E8F0' },
+    previewTitle: { fontSize: '18px', fontWeight: '700', color: '#1E293B', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+    previewSub: { fontSize: '13px', color: '#64748B', marginTop: '6px', margin: 0 },
+    
+    // (상근) 문서 주변 배경을 연한 회색으로 처리하여 문서가 돋보이게 함
+    previewBody: { flex: 1, overflow: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC', position: 'relative' },
+    
+    // (상근) 텍스트 파일 열람 시 A4 용지 느낌의 스타일
+    previewTextBox: { backgroundColor: '#ffffff', padding: '40px', width: '100%', maxWidth: '800px', minHeight: '100%', whiteSpace: 'pre-wrap', fontFamily: '"Malgun Gothic", sans-serif', fontSize: '15px', color: '#334155', lineHeight: '1.7', boxSizing: 'border-box', borderLeft: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' },
+    
+    // (상근) 상단 액션 버튼 스타일 (현대적인 SaaS 느낌)
+    previewDownloadBtn: { display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', backgroundColor: '#EEF2FF', color: '#4F46E5', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px', transition: 'background-color 0.2s' },
+    previewCloseBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', backgroundColor: '#F1F5F9', color: '#64748B', border: 'none', borderRadius: '50%', cursor: 'pointer', transition: 'background-color 0.2s' },
 };

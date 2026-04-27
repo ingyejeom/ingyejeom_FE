@@ -12,6 +12,9 @@ import Archive from './pages/Archive';
 import Profile from './pages/Profile';
 import SpaceList from './pages/SpaceList';
 
+// (상근) 서명 페이지 라우팅 설정
+import Approval from './pages/Approval';
+
 const ProtectedRoute = ({ children }) => {
   const isLoggedin = localStorage.getItem('loginId');
   if (!isLoggedin) {
@@ -40,6 +43,9 @@ function App() {
         <Route path="/handover/create" element={<ProtectedRoute><Handover /></ProtectedRoute>} />
         <Route path="/handover/view/:id" element={<ProtectedRoute><Handover /></ProtectedRoute>} />
         <Route path="/handover/edit/:id" element={<ProtectedRoute><Handover /></ProtectedRoute>} />
+
+        {/* (상근) 서명 페이지 라우팅 설정 */}
+        <Route path="/approval/:approvalId" element={<Approval />} />
 
         {/* 관리자 페이지만 기존 Layout을 사용 */}
         <Route path="/admin" element={<ProtectedRoute><Layout><Admin /></Layout></ProtectedRoute>} />
