@@ -104,7 +104,8 @@ export default function Profile() {
         if (!inviteEmail.trim()) { alert('이메일을 입력해주세요.'); return; }
 
         try {
-            await api.post('/userSpace/invite', {
+            // (상근) 초대 API 변경
+            await api.post('/approval/start', {
                 spaceId: selectedSpaceId,
                 email: inviteEmail.trim()
             });
