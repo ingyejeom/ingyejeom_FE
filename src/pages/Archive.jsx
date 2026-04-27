@@ -195,7 +195,7 @@ export default function Archive() {
             fetchFiles();
         } catch (error) {
             console.error('파일 업로드 에러:', error);
-            alert('파일 업로드에 실패했습니다.');
+            alert(error.response?.data?.message || "작업에 실패했습니다.");
         }
     };
 
@@ -227,7 +227,7 @@ export default function Archive() {
         try {
             await api.post('/file/folder', { spaceId, parentId: currentFolderId, name: name.trim() });
             fetchFiles();
-        } catch (e) { alert("폴더 생성 실패"); }
+        } catch (e) { alert(e.response?.data?.message || "폴더 생성에 실패했습니다."); }
     };
 
     const deleteItem = async (id, type) => {
@@ -236,7 +236,7 @@ export default function Archive() {
             const url = type === 'FOLDER' ? '/file/folder' : '/file';
             await api.delete(url, { data: { id: id } });
             fetchFiles();
-        } catch (e) { alert("삭제 실패"); }
+        } catch (e) { alert(e.response?.data?.message || "삭제에 실패했습니다."); }
     };
 
     // (상근) 파일 및 폴더 이름 수정 함수
@@ -252,7 +252,7 @@ export default function Archive() {
             }
             fetchFiles(); 
         } catch (error) {
-            alert("이름 변경에 실패했습니다.");
+            alert(error.response?.data?.message || "이름 변경에 실패했습니다.");
         }
     };
 
@@ -354,7 +354,7 @@ export default function Archive() {
             });
             fetchFiles();
         } catch (err) {
-            alert("이동에 실패했습니다.");
+            alert(error.response?.data?.message || "이동에 실패했습니다.");
         }
     };
 
