@@ -48,7 +48,8 @@ export default function Home() {
                 subName: item.workName || '지정된 업무 없음',
                 role: item.role,
                 department: '스페이스 멤버',
-                status: '참여 중',
+                // (상근) ongoingApprovalId 여부에 따라 동적 렌더링
+                status: item.ongoingApprovalId ? '인계 중' : '참여 중',
                 statusColor: '#22C55E',
                 iconBg: '#ECFDF5',
                 icon: '🏢'

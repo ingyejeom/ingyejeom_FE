@@ -75,7 +75,7 @@ export default function SpaceList() {
     const handleConfirmInvite = async () => {
         if (!inviteEmail.trim()) { alert('이메일을 입력해주세요.'); return; }
         try {
-            await api.post('/userSpace/invite', {
+            await api.post('/approval/start', {
                 spaceId: selectedSpace.id,
                 email: inviteEmail.trim()
             });
