@@ -5,6 +5,7 @@ import Auth from './pages/Auth';
 import Home from './pages/Home';
 import Space from './pages/Space';
 import Handover from './pages/Handover';
+import HandoverList from './pages/handover/HandoverList';
 import Admin from './pages/Admin';
 import CreateGroup from './pages/CreateGroup';
 import JoinSpace from './pages/JoinSpace';
@@ -37,6 +38,7 @@ function App() {
         <Route path="/space/join" element={<ProtectedRoute><JoinSpace /></ProtectedRoute>} />
         <Route path="/space/:spaceId" element={<ProtectedRoute><Space /></ProtectedRoute>} />
         <Route path="/space/:spaceId/archive" element={<ProtectedRoute><Archive /></ProtectedRoute>} />
+        <Route path="/space/:spaceId/handovers" element={<ProtectedRoute><HandoverList /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         <Route path="/group/spacelist/:groupId" element={<ProtectedRoute><SpaceList /></ProtectedRoute>} />
 
