@@ -41,6 +41,10 @@ export default function Archive() {
 
     // --- 인수인계서 PDF 파일 목록 ---
     const [handoverPdfs, setHandoverPdfs] = useState([]);
+    const [handoverFolderId, setHandoverFolderId] = useState(null);
+
+    // --- 인수인계서 문서 뷰어 ---
+    const [viewingHandoverId, setViewingHandoverId] = useState(null);
 
     // 1. 초기 데이터 로드
     useEffect(() => {
@@ -117,9 +121,13 @@ export default function Archive() {
                 const rootRes = await api.get('/file/list', { params: { spaceId, folderId: null } });
                 const folder = rootRes.data.find(item => item.type === 'FOLDER' && item.name === '인수인계서');
                 if (folder) {
+                    setHandoverFolderId(folder.id);
                     const pdfRes = await api.get('/file/list', { params: { spaceId, folderId: folder.id } });
                     const pdfFiles = pdfRes.data.filter(item => item.type === 'FILE' && (item.name?.endsWith('.pdf') || item.originalFileName?.endsWith('.pdf'))) || [];
                     setHandoverPdfs(pdfFiles);
+                } else {
+                    setHandoverFolderId(null);
+                    setHandoverPdfs([]);
                 }
             } catch (error) {
                 console.error('인수인계서 PDF 로딩 에러:', error);
@@ -363,16 +371,43 @@ export default function Archive() {
         return dateString.split('T')[0].replace(/-/g, '.');
     };
 
+    const getAllHandovers = () => latestHandover ? [latestHandover, ...historyList] : historyList;
+
+    const normalizeHandoverText = (value) => (value || '').toLowerCase().replace(/\s+/g, '');
+
     const findHandoverPdf = (handover) => {
         if (!handoverPdfs.length || !handover) return null;
-        const handoverTitle = handover.title?.toLowerCase() || '';
+        const handoverTitle = normalizeHandoverText(handover.title);
         const handoverDate = handover.createdAt?.split('T')[0] || '';
+
+        const titleMatch = handoverPdfs.find(pdf => {
+            const pdfName = normalizeHandoverText(pdf.name || pdf.originalFileName);
+            return handoverTitle && pdfName.includes(handoverTitle.substring(0, Math.min(10, handoverTitle.length)));
+        });
+        if (titleMatch) return titleMatch;
 
         return handoverPdfs.find(pdf => {
             const pdfName = (pdf.name || pdf.originalFileName || '').toLowerCase();
-            return pdfName.includes(handoverTitle.substring(0, 10)) ||
-                (handoverDate && pdfName.includes(handoverDate));
+            return handoverDate && pdfName.includes(handoverDate);
         });
+    };
+
+    const findHandoverByPdf = (pdf) => {
+        if (!pdf) return null;
+        const pdfName = normalizeHandoverText(pdf.name || pdf.originalFileName);
+        const pdfNameRaw = (pdf.name || pdf.originalFileName || '').toLowerCase();
+
+        return getAllHandovers().find(handover => {
+            const handoverTitle = normalizeHandoverText(handover.title);
+            const handoverDate = handover.createdAt?.split('T')[0] || '';
+            return (handoverTitle && pdfName.includes(handoverTitle.substring(0, Math.min(10, handoverTitle.length)))) ||
+                (handoverDate && pdfNameRaw.includes(handoverDate));
+        }) || null;
+    };
+
+    const handleHandoverPdfPreview = (handover, fallbackPdf = null) => {
+        // Open HandoverDocumentView modal instead of PDF preview or navigation
+        setViewingHandoverId(handover.id);
     };
 
     // 드롭다운 수정 이걸로 햇어요
@@ -444,7 +479,7 @@ export default function Archive() {
                     </div>
                     {latestHandover ? (
                         <div style={styles.handoverCard}>
-                            <div style={styles.handoverContent} onClick={() => navigate(`/handover/view/${latestHandover.id}`)}>
+                            <div style={styles.handoverContent} onClick={() => navigate(`/handover/edit/${latestHandover.id}`)}>
                                 <div style={styles.handoverTitleRow}><h4 style={styles.handoverTitle}>{latestHandover.title}</h4><span style={styles.badge}>LATEST</span></div>
                                 <p style={styles.handoverDesc}>{latestHandover.role}</p>
                                 <div style={styles.handoverMeta}>
@@ -453,15 +488,15 @@ export default function Archive() {
                                 </div>
                             </div>
                             <div style={styles.handoverActions}>
-                                {historyList.length > 0 && (
-                                    <div style={styles.archiveFolderCard} onClick={() => setIsPreviousHandoverModalOpen(true)}>
+                                {latestHandover && (
+                                    <div style={styles.archiveFolderCard} onClick={() => navigate(`/space/${spaceId}/handovers`)}>
                                         <div style={styles.archiveFolderIcon}>
                                             <span className="material-icons" style={{ fontSize: '28px', color: '#94A3B8' }}>folder</span>
-                                            <span style={styles.archiveFolderBadge}>{historyList.length}</span>
+                                            <span style={styles.archiveFolderBadge}>{handoverPdfs.length}</span>
                                         </div>
                                         <div style={styles.archiveFolderInfo}>
-                                            <span style={styles.archiveFolderLabel}>이전 인수인계서</span>
-                                            <span style={styles.archiveFolderHint}>클릭하여 보기</span>
+                                            <span style={styles.archiveFolderLabel}>인수인계서</span>
+                                            <span style={styles.archiveFolderHint}>PDF 모아보기</span>
                                         </div>
                                         <span className="material-icons" style={{ color: '#CBD5E1', fontSize: '16px' }}>chevron_right</span>
                                     </div>
@@ -518,7 +553,9 @@ export default function Archive() {
 
                     {files.filter(f => !(currentFolderId === null && f.type === 'FOLDER' && f.name === '인수인계서')).length > 0 ? (
                         <div style={styles.folderGrid}>
-                            {files.filter(f => !(currentFolderId === null && f.type === 'FOLDER' && f.name === '인수인계서')).map(file => (
+                            {files.filter(f => !(currentFolderId === null && f.type === 'FOLDER' && f.name === '인수인계서')).map(file => {
+                                const handoverMeta = file.type === 'FILE' ? findHandoverByPdf(file) : null;
+                                return (
                                 <div
                                     key={`${file.type}-${file.id}`}
                                     style={{ ...styles.fileCard, ...(dragOverTarget === file.id && file.type === 'FOLDER' ? styles.dragOverCard : {}) }}
@@ -552,12 +589,12 @@ export default function Archive() {
                                         <>
                                             <span className="material-icons" style={styles.fileIcon}>description</span>
                                             <div style={{ overflow: 'hidden', flex: 1, width: '100%', textAlign: 'center' }}>
-                                                <h4 style={styles.fileName} title={file.name || file.originalFileName}>{formatFileName(file.name || file.originalFileName)}</h4>
+                                                <h4 style={styles.fileName} title={handoverMeta?.title || file.name || file.originalFileName}>{formatFileName(handoverMeta?.title || file.name || file.originalFileName)}</h4>
                                                 <p style={styles.fileSize}>{(file.size / 1024).toFixed(1)} KB • {file.uploaderName}</p>
                                             </div>
                                             {/* (상근) 파일 액션 버튼 교체 */}
                                             <div style={styles.iconActions}>
-                                                <button style={styles.iconBtn} onClick={() => handlePreview(file)} title="미리보기">
+                                                <button style={styles.iconBtn} onClick={() => handlePreview(file, handoverMeta ? { title: handoverMeta.title, createdAt: handoverMeta.createdAt } : null)} title="미리보기">
                                                     <span className="material-icons" style={styles.actionIcon}>visibility</span>
                                                 </button>
                                                 <button style={styles.iconBtn} onClick={() => handleDownload(file)} title="다운로드">
@@ -573,7 +610,8 @@ export default function Archive() {
                                         </>
                                     )}
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     ) : (
                         <div style={styles.emptyCard}>
@@ -602,39 +640,38 @@ export default function Archive() {
                 <div style={styles.modalOverlay}>
                     <div style={styles.modalContentWide}>
                         <div style={styles.modalHeader}>
-                            <h3 style={styles.modalTitle}>이전 인수인계서</h3>
+                            <h3 style={styles.modalTitle}>인수인계서</h3>
                             <button style={styles.closeBtn} onClick={() => setIsPreviousHandoverModalOpen(false)}>✕</button>
                         </div>
                         <div style={styles.previousHandoverContent}>
                             <div style={styles.previousSectionHeader}>
                                 <span className="material-icons" style={{ fontSize: '18px', color: '#6366F1' }}>description</span>
-                                <span style={styles.previousSectionTitle}>인수인계서 문서 ({historyList.length})</span>
+                                <span style={styles.previousSectionTitle}>인수인계서 PDF ({handoverPdfs.length})</span>
                             </div>
                             <div style={styles.historyList}>
-                                {historyList.map(item => {
+                                {getAllHandovers().map(item => {
                                     const matchingPdf = findHandoverPdf(item);
+                                    if (!matchingPdf) return null;
                                     return (
                                         <div key={item.id} style={styles.historyItem}>
-                                            <div style={styles.historyItemContent} onClick={() => { setIsPreviousHandoverModalOpen(false); navigate(`/handover/view/${item.id}`); }}>
-                                                <h4 style={styles.historyTitle}>{item.title}</h4>
+                                            <div style={styles.historyItemContent} onClick={() => { setIsPreviousHandoverModalOpen(false); handleHandoverPdfPreview(item, matchingPdf); }}>
+                                                <h4 style={styles.historyTitle}>{item.title} {latestHandover?.id === item.id && <span style={styles.badge}>LATEST</span>}</h4>
                                                 <p style={styles.historyMeta}>작성자: {item.userName} | 작성일: {formatDate(item.createdAt)}</p>
                                             </div>
                                             <div style={styles.historyItemActions}>
-                                                {matchingPdf && (
-                                                    <button style={styles.pdfViewBtn} onClick={(e) => { e.stopPropagation(); handlePreview(matchingPdf, { title: item.title, createdAt: item.createdAt }); }} title="PDF 보기">
-                                                        <span className="material-icons" style={{ fontSize: '16px' }}>picture_as_pdf</span> PDF
-                                                    </button>
-                                                )}
-                                                <span className="material-icons" style={{ color: '#94A3B8', cursor: 'pointer' }} onClick={() => { setIsPreviousHandoverModalOpen(false); navigate(`/handover/view/${item.id}`); }}>chevron_right</span>
+                                                <button style={styles.pdfViewBtn} onClick={(e) => { e.stopPropagation(); setIsPreviousHandoverModalOpen(false); handleHandoverPdfPreview(item, matchingPdf); }} title="보기">
+                                                    <span className="material-icons" style={{ fontSize: '16px' }}>visibility</span> 보기
+                                                </button>
+                                                <span className="material-icons" style={{ color: '#94A3B8', cursor: 'pointer' }} onClick={() => { setIsPreviousHandoverModalOpen(false); handleHandoverPdfPreview(item, matchingPdf); }}>chevron_right</span>
                                             </div>
                                         </div>
                                     );
                                 })}
                             </div>
-                            {historyList.length === 0 && (
+                            {handoverPdfs.length === 0 && (
                                 <div style={styles.emptyPreviousState}>
                                     <span className="material-icons" style={{ fontSize: '48px', color: '#CBD5E1' }}>folder_open</span>
-                                    <p style={styles.emptyText}>이전 인수인계서가 없습니다.</p>
+                                    <p style={styles.emptyText}>생성된 인수인계서 PDF가 없습니다.</p>
                                 </div>
                             )}
                         </div>
@@ -680,6 +717,14 @@ export default function Archive() {
                         
                     </div>
                 </div>
+            )}
+
+            {/* Handover Document View Modal */}
+            {viewingHandoverId && (
+                <HandoverDocumentView
+                    handoverId={viewingHandoverId}
+                    onClose={() => setViewingHandoverId(null)}
+                />
             )}
         </div>
     );
