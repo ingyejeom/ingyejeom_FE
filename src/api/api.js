@@ -1,9 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-    //baseURL: 'https://ingyejeom.cloud/api',
-    baseURL: 'http://localhost:8080/api',
-
+    baseURL: 'https://ingyejeom.cloud/api',
     timeout: 300000,
     headers: {
         'Content-Type': 'application/json',
