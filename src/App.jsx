@@ -5,7 +5,7 @@ import Auth from './pages/Auth';
 import Home from './pages/Home';
 import Space from './pages/Space';
 import Handover from './pages/Handover';
-import HandoverList from './pages/handover/HandoverList';
+import HandoverList from './pages/Handover/HandoverList';
 import Admin from './pages/Admin';
 import CreateGroup from './pages/CreateGroup';
 import JoinSpace from './pages/JoinSpace';
