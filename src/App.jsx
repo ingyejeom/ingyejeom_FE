@@ -16,6 +16,11 @@ import SpaceList from './pages/SpaceList';
 // (상근) 서명 페이지 라우팅 설정
 import Approval from './pages/Approval';
 
+// Demo pages (no login required)
+import DemoArchive from './pages/demo/DemoArchive';
+import DemoHandover from './pages/demo/DemoHandover';
+import DemoHandoverList from './pages/demo/DemoHandoverList';
+
 const ProtectedRoute = ({ children }) => {
   const isLoggedin = localStorage.getItem('loginId');
   if (!isLoggedin) {
@@ -51,6 +56,13 @@ function App() {
 
         {/* 관리자 페이지만 기존 Layout을 사용 */}
         <Route path="/admin" element={<ProtectedRoute><Layout><Admin /></Layout></ProtectedRoute>} />
+
+        {/* Demo routes (no login required) */}
+        <Route path="/demo" element={<Navigate to="/demo/archive" replace />} />
+        <Route path="/demo/archive" element={<DemoArchive />} />
+        <Route path="/demo/handovers" element={<DemoHandoverList />} />
+        <Route path="/demo/handover/create" element={<DemoHandover />} />
+        <Route path="/demo/handover/edit/:id" element={<DemoHandover />} />
       </Routes>
     </BrowserRouter>
   );
