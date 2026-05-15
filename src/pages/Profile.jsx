@@ -6,7 +6,7 @@ import Header from '../components/Header';
 export default function Profile() {
     const navigate = useNavigate();
 
-    const [userInfo, setUserInfo] = useState({ name: '-', email: '-', username: '' });
+    const [userInfo, setUserInfo] = useState({ id: null, name: '-', email: '-', username: '', phone: '', birth: '' });
     const [adminGroups, setAdminGroups] = useState([]);
     const [memberSpaces, setMemberSpaces] = useState([]);
 
@@ -30,6 +30,10 @@ export default function Profile() {
 
     const PER_PAGE = 10; //
 
+    // (상근) [추가] 프로필 수정 모드 상태 및 폼 임시 데이터
+    const [isEditingProfile, setIsEditingProfile] = useState(false);
+    const [editProfileForm, setEditProfileForm] = useState({ name: '', phone: '', birth: '' });
+
     // 🌟 [수정] 초기 데이터 로드 로직 분리
     useEffect(() => {
         const savedId = localStorage.getItem("loginId");
@@ -41,14 +45,17 @@ export default function Profile() {
         try {
             const res = await api.get('/user', { params: { deleted: false } });
             setUserInfo({
+                id: res.data.id,
                 name: res.data.name || res.data.username || savedId || '',
                 email: res.data.email || '',
-                username: res.data.username || savedId || ''
+                username: res.data.username || savedId || '',
+                phone: res.data.phone || '',
+                birth: res.data.birth || ''
             });
         } catch (error) {
             const savedId = localStorage.getItem("loginId");
             if (savedId) {
-                setUserInfo({ name: savedId, email: '정보 없음', username: savedId });
+                setUserInfo({ name: savedId, email: '정보 없음', username: savedId, phone: '', birth: '' });
             } else {
                 navigate('/auth');
             }
@@ -74,7 +81,7 @@ export default function Profile() {
         setIsAdminFetching(true);
 
         try {
-            const res = await api.get('/userSpace/getAdminSpaces', { 
+            const res = await api.get('/group/getProfileGroups', { 
                 params: { 
                     cursor: isInitial ? null : adminCursor, 
                     perPage: PER_PAGE, 
@@ -176,6 +183,53 @@ export default function Profile() {
         }
     };
 
+    // (상근) [추가] 프로필 '수정하기' 클릭 (기존 값을 텍스트 박스 폼에 세팅)
+    const handleEditProfileClick = () => {
+        setEditProfileForm({
+            id: userInfo.id,
+            name: userInfo.name || '',
+            phone: userInfo.phone || '',
+            birth: userInfo.birth || ''
+        });
+        setIsEditingProfile(true);
+    };
+
+    // (상근) [추가] 프로필 수정 '취소' 클릭
+    const handleCancelProfileEdit = () => {
+        setIsEditingProfile(false);
+    };
+
+    // (상근) [추가] 휴대폰 번호 강제 포맷팅 (000-0000-0000)
+    const handlePhoneChange = (e) => {
+        const onlyNums = e.target.value.replace(/[^0-9]/g, '');
+        let formattedPhone = '';
+        if (onlyNums.length < 4) {
+            formattedPhone = onlyNums;
+        } else if (onlyNums.length < 8) {
+            formattedPhone = `${onlyNums.slice(0, 3)}-${onlyNums.slice(3)}`;
+        } else {
+            formattedPhone = `${onlyNums.slice(0, 3)}-${onlyNums.slice(3, 7)}-${onlyNums.slice(7, 11)}`;
+        }
+        setEditProfileForm({ ...editProfileForm, phone: formattedPhone });
+    };
+
+    // (상근) [추가] 프로필 '저장' 로직 (백엔드 PUT /api/user 연동)
+    const handleSaveProfile = async () => {
+        try {
+            await api.put('/user', {
+                id: editProfileForm.id,
+                name: editProfileForm.name,
+                phone: editProfileForm.phone,
+                birth: editProfileForm.birth
+            });
+            alert('프로필이 성공적으로 수정되었습니다.');
+            setUserInfo({ ...userInfo, ...editProfileForm }); // 화면 상태 갱신 반영
+            setIsEditingProfile(false);
+        } catch (error) {
+            alert(error.response?.data?.message || '프로필 수정에 실패했습니다.');
+        }
+    };
+
     const handleOpenHandoverModal = (spaceId) => {
         setSelectedSpaceId(spaceId);
         setInviteEmail('');
@@ -233,18 +287,93 @@ export default function Profile() {
                             <span className="material-icons" style={{ color: '#3B82F6', fontSize: '24px' }}>person</span>
                             <h2 style={styles.panelTitle}>기본 정보</h2>
                         </div>
-                        <button style={styles.editBtn} onClick={() => alert('정보 수정 기능은 준비 중입니다.')}>수정하기</button>
+
+                        {/* (상근) [수정] 수정 모드에 따른 버튼(수정, 취소, 저장) 토글 */}
+                        {isEditingProfile ? (
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <button style={{ ...styles.editBtn, backgroundColor: '#F3F4F6', color: '#374151', border: '1px solid #D1D5DB' }} onClick={handleCancelProfileEdit}>
+                                    취소
+                                </button>
+                                <button style={{ ...styles.editBtn, backgroundColor: '#3B82F6', color: '#FFF' }} onClick={handleSaveProfile}>
+                                    저장하기
+                                </button>
+                            </div>
+                        ) : (
+                            <button style={styles.editBtn} onClick={handleEditProfileClick}>
+                                수정하기
+                            </button>
+                        )}
                     </div>
 
                     <div style={styles.profileCard}>
-                        <div style={styles.avatarWrapper}><span className="material-icons" style={{ fontSize: '48px', color: '#9CA3AF' }}>person</span></div>
-                        <h3 style={styles.userName}>{userInfo.name}</h3>
-                        <p style={styles.userRole}>사용자 ID: {userInfo.username}</p>
+                        <div style={styles.avatarWrapper}>
+                            <span className="material-icons" style={{ fontSize: '48px', color: '#9CA3AF' }}>person</span>
+                        </div>
+
+                        {/* (상근) [수정] 이름 부분을 텍스트 박스로 변환 */}
+                        <div style={styles.nameSection}>
+                            {isEditingProfile ? (
+                                <input 
+                                    style={styles.nameInput}
+                                    value={editProfileForm.name}
+                                    onChange={(e) => setEditProfileForm({...editProfileForm, name: e.target.value})}
+                                    autoFocus // 수정하기 누르면 이름에 바로 커서가 가도록 설정
+                                />
+                            ) : (
+                                <h3 style={styles.userName}>{userInfo.name}</h3>
+                            )}
+                            <p style={styles.userIdText}>ID: {userInfo.username}</p>
+                        </div>
 
                         <div style={styles.infoList}>
+                            {/* 메일 (항상 텍스트 표시, 수정 불가) */}
                             <div style={styles.infoItem}>
                                 <p style={styles.infoLabel}>메일</p>
-                                <div style={styles.infoValueBox}><span className="material-icons" style={styles.infoIcon}>mail</span><span style={styles.infoText}>{userInfo.email || '-'}</span></div>
+                                <div style={styles.infoValueBox}>
+                                    <span className="material-icons" style={styles.infoIcon}>mail</span>
+                                    <span style={styles.infoText}>{userInfo.email || '-'}</span>
+                                </div>
+                            </div>
+
+                            {/* 휴대폰 번호 (메일과 똑같은 박스 UI) */}
+                            <div style={styles.infoItem}>
+                                <p style={styles.infoLabel}>휴대폰 번호</p>
+                                <div style={styles.infoValueBox}>
+                                    <span className="material-icons" style={styles.infoIcon}>phone_iphone</span>
+                                    {isEditingProfile ? (
+                                        <input 
+                                            style={styles.inputField}
+                                            value={editProfileForm.phone}
+                                            onChange={handlePhoneChange}
+                                            placeholder="010-0000-0000"
+                                            maxLength="13"
+                                        />
+                                    ) : (
+                                        <span style={userInfo.phone ? styles.infoText : styles.placeholderText}>
+                                            {userInfo.phone || '-'}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* 생일 (메일과 똑같은 박스 UI + 달력) */}
+                            <div style={styles.infoItem}>
+                                <p style={styles.infoLabel}>생일</p>
+                                <div style={styles.infoValueBox}>
+                                    <span className="material-icons" style={styles.infoIcon}>cake</span>
+                                    {isEditingProfile ? (
+                                        <input 
+                                            type="date"
+                                            style={styles.inputField}
+                                            value={editProfileForm.birth}
+                                            onChange={(e) => setEditProfileForm({...editProfileForm, birth: e.target.value})}
+                                        />
+                                    ) : (
+                                        <span style={userInfo.birth ? styles.infoText : styles.placeholderText}>
+                                            {userInfo.birth || '-'}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -381,14 +510,63 @@ const styles = {
     panelTitle: { fontSize: '18px', fontWeight: '700', color: '#111827' },
     profileCard: { display: 'flex', flexDirection: 'column', alignItems: 'center' },
     avatarWrapper: { width: '100px', height: '100px', borderRadius: '50%', border: '4px solid #FFFFFF', outline: '2px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4F6', marginBottom: '16px' },
-    userName: { fontSize: '24px', fontWeight: '700', color: '#111827', marginBottom: '4px' },
+    nameSection: { textAlign: 'center', marginBottom: '24px', width: '100%' },
+    userName: { 
+        fontSize: '20px', 
+        fontWeight: '800', 
+        color: '#0F172A', 
+        margin: '0 0 4px 0', 
+        lineHeight: '1.2', 
+        display: 'block' 
+    },
+    nameInput: { 
+        fontSize: '20px', 
+        fontWeight: '800', 
+        color: '#0F172A', 
+        margin: '0 0 4px 0', 
+        textAlign: 'center', 
+        border: 'none', 
+        backgroundColor: 'transparent', 
+        outline: 'none', 
+        width: '100%', 
+        fontFamily: 'inherit',
+        padding: '0',      // 브라우저 기본 패딩 제거
+        lineHeight: '1.2', // h3와 동일하게 설정하여 위치 고정
+        display: 'block'
+    },
+    userIdText: { fontSize: '13px', color: '#64748B', margin: 0 },
     userRole: { fontSize: '14px', color: '#6B7280', marginBottom: '32px' },
     infoList: { width: '100%', display: 'flex', flexDirection: 'column', gap: '16px' },
     infoItem: { display: 'flex', flexDirection: 'column', gap: '8px' },
     infoLabel: { fontSize: '12px', fontWeight: '700', color: '#6B7280' },
-    infoValueBox: { display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#F9FAFB', padding: '12px 16px', borderRadius: '8px' },
+    // (상근) [수정] 메일 박스와 동일한 디자인의 통합 박스
+    infoValueBox: { 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '10px', 
+        padding: '10px 14px', 
+        backgroundColor: '#F8FAFC', 
+        border: '1px solid #E2E8F0', 
+        borderRadius: '8px' 
+    },
     infoIcon: { color: '#9CA3AF', fontSize: '18px' },
-    infoText: { fontSize: '14px', color: '#374151' },
+    infoText: { fontSize: '14px', color: '#374151', fontWeight: '500', lineHeight: '20px', display: 'inline-block' },
+    placeholderText: { fontSize: '14px', color: '#CBD5E1' },
+    inputField: { 
+        border: 'none', 
+        backgroundColor: 'transparent', 
+        width: '100%', 
+        outline: 'none', 
+        fontSize: '14px', 
+        color: '#1E293B', 
+        fontWeight: '500', 
+        fontFamily: 'inherit',
+        padding: '0', // 여백을 0으로 만들어 기존 span 태그의 위치와 완벽히 일치시킴
+        margin: '0',
+        lineHeight: '20px',
+        height: '20px',
+        display: 'block'
+    }, 
     emptyText: { color: '#6B7280', textAlign: 'center', padding: '40px', fontSize: '14px' },
     scrollArea: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '8px' },
     groupCard: { border: '1px solid #E5E7EB', borderRadius: '8px', padding: '20px', backgroundColor: '#F9FAFB', flexShrink: 0 },
