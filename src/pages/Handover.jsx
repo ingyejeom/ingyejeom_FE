@@ -469,11 +469,17 @@ export default function Handover() {
         }
         const payloadText = JSON.stringify({ modules });
 
+        const referencedFileIds = [...new Set(
+            modules.flatMap(module => 
+                (module.attachedFiles || []).map(file => file.fileId)
+            )
+        )];
+
         try {
             if (id || savedHandoverId) {
                 // Update mode: update existing document
                 const handoverId = savedHandoverId || parseInt(id);
-                await api.put('/handover', { id: handoverId, title, text: payloadText });
+                await api.put('/handover', { id: handoverId, title, text: payloadTex, referencedFileIds });
                 alert('저장되었습니다.');
                 setIsSaved(true);
                 const policyRes = await api.get('/handover/policy', { params: { handoverId } });
@@ -481,7 +487,7 @@ export default function Handover() {
             } else {
                 // Create mode: create new document using spaceId
                 if (!targetSpaceId) { alert('스페이스 정보를 찾을 수 없습니다.'); return; }
-                const res = await api.post('/handover/bySpace', { title, text: payloadText, spaceId: parseInt(targetSpaceId) });
+                const res = await api.post('/handover/bySpace', { title, text: payloadText, spaceId: parseInt(targetSpaceId), referencedFileIds });
                 const newId = res.data?.id;
                 if (newId) {
                     setSavedHandoverId(newId);
@@ -493,7 +499,8 @@ export default function Handover() {
             }
         } catch (error) {
             console.error(error);
-            alert('저장에 실패했습니다.');
+            const errorMessage = error.response?.data?.message || '저장에 실패했습니다.';
+            alert(errorMessage);
         }
     };
 
