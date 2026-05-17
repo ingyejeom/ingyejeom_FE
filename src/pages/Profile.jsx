@@ -99,7 +99,7 @@ export default function Profile() {
 
             newData.forEach(item => {
                 const groupName = item.groupName || "그룹없음";
-                const groupId = item.groupId;
+                const groupId = item.id;
                 if (!adminGroupSet.has(groupName)) {
                     adminGroupSet.set(groupName, groupId);
                     parsedAdmins.push({
