@@ -28,6 +28,16 @@ api.interceptors.response.use(
     async (error) => {
         const originalRequest = error.config;
 
+        if (error.response && error.response.status === 403 && error.response.data && error.response.data.error === 'ACCESS_DENIED') {
+            alert(error.response.data.message);
+            if (document.referrer) {
+                window.history.back();
+            } else {
+                window.location.href = '/';
+            }
+            return Promise.reject(error);
+        }
+
         // 백엔드에서 401(인증 실패/만료) 에러가 오고, 토큰 재시도를 아직 하지 않은 경우 (리프레시 로직)
         if (error.response && error.response.status === 401 && !originalRequest._retry) {
             originalRequest._retry = true;

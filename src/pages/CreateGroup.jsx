@@ -18,14 +18,21 @@ export default function CreateGroup() {
             return;
         }
 
+        const validSpaces = tasks
+            .filter(task => task.name.trim() !== '')
+            .map(task => ({
+                workName: task.name,
+                userEmail: task.email
+            }));
+
+        if (validSpaces.length === 0) {
+            alert('최소 하나 이상의 스페이스(업무)를 생성해야 합니다!');
+            return;
+        }
+
         const requestData = {
             groupName: groupName,
-            spaces: tasks
-                .filter(task => task.name.trim() !== '')
-                .map(task => ({
-                    workName: task.name,
-                    userEmail: task.email
-                }))
+            spaces: validSpaces
         };
 
         try {
