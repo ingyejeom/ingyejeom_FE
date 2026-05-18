@@ -152,7 +152,7 @@ export default function JoinSpace() {
 
 const styles = {
     pageBackground: { backgroundColor: '#F3F4F6', minHeight: '100vh', paddingBottom: '60px' },
-    header: { position: 'relative', height: '64px', backgroundColor: 'rgba(255, 255, 255, 0.95)', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 40px', position: 'sticky', top: 0, zIndex: 10 },
+    header: { height: '64px', backgroundColor: 'rgba(255, 255, 255, 0.95)', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 40px', position: 'sticky', top: 0, zIndex: 10 },
     backBtn: { fontSize: '20px', color: '#6B7280', background: 'none', border: 'none', cursor: 'pointer', flex: 1, textAlign: 'left' },
     headerTitle: { position: 'absolute', left: '50%', transform: 'translateX(-50%)', fontSize: '18px', fontWeight: '700', color: '#1F2937' },
     profileAvatar: { width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, #3B82F6 0%, #A855F7 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '12px', cursor: 'pointer' },

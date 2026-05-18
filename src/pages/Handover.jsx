@@ -23,8 +23,8 @@ const MODULE_TYPES = {
 const REQUIRED_FIELDS = {
     BASIC_INFO: [['handoverName', '인계자 성명'], ['affiliation', '소속 / 직급'], ['periodStart', '인계 시작일'], ['periodEnd', '인계 종료일'], ['emergencyContact', '비상 연락처'], ['receiverName', '인수자 성명']],
     ACCOUNT_ACCESS: [['systemName', '시스템 / 사이트명'], ['accessUrl', '접속 URL'], ['accountId', 'ID / 계정명'], ['password', '비밀번호'], ['permissionLevel', '권한 등급']],
-    TASK: [['taskName', '업무명'], ['taskType', '업무 유형'], ['importance', '중요도'], ['schedule', '수행 주기/시점'], ['duration', '소요 시간'], ['requiredTools', '필요 도구/환경'], ['procedure', '상세 절차'], ['output', '산출물'], ['status', '상태']],
-    RELATED_INFO: [['relatedDocLinks', '문서 링크'], ['relatedAccount', '사용 계정'], ['relatedContact', '관련 담당자']],
+    TASK: [['taskName', '업무명'], ['taskType', '업무 유형'], ['importance', '중요도'], ['schedule', '수행 주기/시점'], ['duration', '소요 시간'], ['requiredTools', '필요 도구/환경'], ['procedure', '상세 절차'], ['status', '상태']],
+    RELATED_INFO: [['relatedDocLinks', '문서 링크']],
     ASSET: [['itemName', '품목명'], ['storageLocation', '보관 위치'], ['quantityStatus', '수량 / 상태'], ['lendingStatus', '대여 여부'], ['ownershipStatus', '관리/소유 구분']],
     BUDGET: [['budgetName', '예산명'], ['budgetPeriod', '예산 기간'], ['totalBudget', '총 예산'], ['usedBudget', '사용 금액'], ['remainingBudget', '잔여 예산']],
     EXPENSE: [['costItem', '비용 항목'], ['paymentSchedule', '결제일 / 주기'], ['amount', '금액'], ['paymentMethod', '결제 수단'], ['expenseStatus', '승인/정산 상태']],
@@ -376,7 +376,9 @@ export default function Handover() {
             // Reorder existing modules
             const newModules = [...modules];
             const [draggedModule] = newModules.splice(draggedIndex, 1);
-            newModules.splice(dropIndex, 0, draggedModule);
+            // Adjust drop index if dragging from above to below
+            const adjustedDropIndex = draggedIndex < dropIndex ? dropIndex - 1 : dropIndex;
+            newModules.splice(adjustedDropIndex, 0, draggedModule);
             setModules(newModules);
             setDraggedIndex(null);
             setDragOverIndex(null);
@@ -479,7 +481,7 @@ export default function Handover() {
             if (id || savedHandoverId) {
                 // Update mode: update existing document
                 const handoverId = savedHandoverId || parseInt(id);
-                await api.put('/handover', { id: handoverId, title, text: payloadTex, referencedFileIds });
+                await api.put('/handover', { id: handoverId, title, text: payloadText, referencedFileIds });
                 alert('저장되었습니다.');
                 setIsSaved(true);
                 const policyRes = await api.get('/handover/policy', { params: { handoverId } });
@@ -744,13 +746,13 @@ export default function Handover() {
             case 'HEADING': return null;
             case 'BASIC_INFO': return <><div style={styles.viewGrid}>{renderViewField('인계자 성명', data.handoverName)}{renderViewField('소속 / 직급', data.affiliation)}</div><div style={styles.viewGrid}>{renderViewField('인계 시작일', data.periodStart)}{renderViewField('인계 종료일', data.periodEnd)}</div><div style={styles.viewGrid}>{renderViewField('비상 연락처', data.emergencyContact)}{renderViewField('인수자 성명', data.receiverName)}</div></>;
             case 'ACCOUNT_ACCESS': return <>{renderViewField('시스템 / 사이트명', data.systemName)}{renderViewField('접속 URL', data.accessUrl, true)}<div style={styles.viewGrid}>{renderViewField('ID / 계정명', data.accountId)}{renderViewField('비밀번호', data.password)}</div>{renderViewField('권한 등급', data.permissionLevel)}{renderViewField('이용 규칙', data.usageRule)}</>;
-            case 'TASK': return <>{renderViewField('업무명', <strong style={{ fontSize: '18px' }}>{data.taskName}</strong>)}<div style={styles.viewGrid}>{renderViewField('업무 유형', data.taskType)}{renderViewField('중요도', data.importance)}</div><div style={styles.viewGrid}>{renderViewField('수행 주기/시점', data.schedule)}{renderViewField('소요 시간', data.duration)}</div>{renderViewField('선행 업무', data.prerequisiteTask)}{renderViewField('필요 도구/환경', data.requiredTools)}{renderViewField('상세 절차 (Step)', <pre style={styles.preText}>{data.procedure}</pre>)}{renderViewField('산출물 (Output)', data.output)}{renderViewField('검증 기준', data.verificationCriteria)}{renderViewField('트러블슈팅', data.troubleshooting)}<hr style={styles.divider} />{renderViewField('현재 상태', data.status)}<div style={styles.viewGrid}>{renderViewField('최근 수행일', data.lastExecutionDate)}{renderViewField('차기 수행일', data.nextExecutionDate)}</div>{renderViewField('미결 사항', data.pendingIssues)}</>;
+            case 'TASK': return <>{renderViewField('업무명', <strong style={{ fontSize: '18px' }}>{data.taskName}</strong>)}<div style={styles.viewGrid}>{renderViewField('업무 유형', data.taskType)}{renderViewField('중요도', data.importance)}</div><div style={styles.viewGrid}>{renderViewField('수행 주기/시점', data.schedule)}{renderViewField('소요 시간', data.duration)}</div>{renderViewField('선행 업무', data.prerequisiteTask)}{renderViewField('필요 도구/환경', data.requiredTools)}{renderViewField('상세 절차 (Step)', <pre style={styles.preText}>{data.procedure}</pre>)}{renderViewField('산출물 (Output)', data.output)}{renderViewField('검증 기준', data.verificationCriteria)}{renderViewField('트러블슈팅', data.troubleshooting)}<hr style={styles.divider} />{renderViewField('현재 상태', data.status)}<div style={styles.viewGrid}>{renderViewField('최근 수행일', data.lastExecutionDate)}{renderViewField('차기 수행일', data.nextExecutionDate)}</div>{renderViewField('미결 사항', data.pendingIssues)}<hr style={styles.divider} /><div style={styles.viewGrid}>{renderViewField('담당자 이름', data.assigneeName)}{renderViewField('부서', data.assigneeDept)}</div>{renderViewField('담당자 연락처', data.assigneeContact)}</>;
             case 'RELATED_INFO': return <>{renderViewField('문서 링크', data.relatedDocLinks, true)}<div style={styles.viewGrid}>{renderViewField('사용 계정', data.relatedAccount)}{renderViewField('관련 담당자', data.relatedContact)}</div>{renderViewField('참고 레퍼런스', <pre style={styles.preText}>{data.referenceLinks}</pre>)}</>;
-            case 'ASSET': return <>{renderViewField('품목명', <strong style={{ fontSize: '18px' }}>{data.itemName}</strong>)}{renderViewField('보관 위치', data.storageLocation)}{renderViewField('수량 / 상태', data.quantityStatus)}<div style={styles.viewGrid}>{renderViewField('대여 여부', formatAssetLending(data.lendingStatus, data.isReturned))}{renderViewField('관리/소유 구분', data.ownershipStatus)}</div>{renderViewField('담당자 / 반납처', data.assetManager)}</>;
+            case 'ASSET': return <>{renderViewField('품목명', <strong style={{ fontSize: '18px' }}>{data.itemName}</strong>)}{renderViewField('보관 위치', data.storageLocation)}{renderViewField('수량 / 상태', data.quantityStatus)}<div style={styles.viewGrid}>{renderViewField('자산 출처', data.assetSource)}{renderViewField('관련 문서 링크', data.assetDocLink, true)}</div><div style={styles.viewGrid}>{renderViewField('대여 여부', formatAssetLending(data.lendingStatus, data.isReturned))}{renderViewField('관리/소유 구분', data.ownershipStatus)}</div>{renderViewField('담당자 / 반납처', data.assetManager)}</>;
             case 'BUDGET': return <>{renderViewField('예산명', <strong style={{ fontSize: '18px' }}>{data.budgetName || data.costItem}</strong>)}<div style={styles.viewGrid}>{renderViewField('예산 기간', data.budgetPeriod || data.paymentSchedule)}{renderViewField('총 예산', data.totalBudget ? `${Number(data.totalBudget).toLocaleString()}원` : (data.amount ? `${Number(data.amount).toLocaleString()}원` : ''))}</div><div style={styles.viewGrid}>{renderViewField('사용 금액', data.usedBudget ? `${Number(data.usedBudget).toLocaleString()}원` : '')}{renderViewField('잔여 예산', data.remainingBudget ? `${Number(data.remainingBudget).toLocaleString()}원` : '')}</div>{renderViewField('예산 관리 메모', data.budgetNotes)}{renderViewField('관련 장부', data.ledgerLink, true)}</>;
             case 'EXPENSE': return <>{renderViewField('비용 항목', <strong style={{ fontSize: '18px' }}>{data.costItem}</strong>)}<div style={styles.viewGrid}>{renderViewField('결제일 / 주기', data.paymentSchedule)}{renderViewField('금액', data.amount ? `${Number(data.amount).toLocaleString()}원` : '')}</div><div style={styles.viewGrid}>{renderViewField('결제 수단', data.paymentMethod)}{renderViewField('승인/정산 상태', data.expenseStatus)}</div>{renderViewField('증빙 자료 링크', data.receiptLink, true)}{renderViewField('관련 장부', data.ledgerLink, true)}</>;
             case 'DOCUMENT_CONTACT': return <>{renderViewField('문서 제목 / 이름', data.docTitle)}<div style={styles.viewGrid}>{renderViewField('유형 / 소속', data.docType)}{renderViewField('보관 형태 / 연락처', data.storageType)}</div>{renderViewField('위치 / 역할', data.docLocation)}</>;
-            case 'RISK': return <>{renderViewField('리스크 제목', <strong style={{ fontSize: '18px' }}>{data.riskTitle}</strong>)}{renderViewField('리스크 설명', data.riskDescription)}<div style={styles.viewGrid}>{renderViewField('영향도', data.impact)}{renderViewField('발생 조건', data.triggerCondition)}</div>{renderViewField('즉각 대응 방법', data.immediateResponse)}{renderViewField('사전 예방 방법', data.prevention)}<hr style={styles.divider} /><div style={styles.viewGrid}>{renderViewField('관련 업무', data.relatedTask)}{renderViewField('참고 문서', data.referenceDoc)}</div>{renderViewField('공유 범위', formatYesNo(data.externalShareStatus ?? data.isExternalShareable))}<hr style={styles.divider} /><div style={styles.viewGrid}>{renderViewField('작성자', data.author)}{renderViewField('최종 업데이트일', data.lastUpdatedDate)}</div></>;
+            case 'RISK': return <>{renderViewField('리스크 제목', <strong style={{ fontSize: '18px' }}>{data.riskTitle}</strong>)}{renderViewField('리스크 설명', data.riskDescription)}<div style={styles.viewGrid}>{renderViewField('영향도', data.impact)}{renderViewField('발생 조건', data.triggerCondition)}</div>{renderViewField('리스크 발생 원인', data.riskReason)}{renderViewField('장애/실패 사례', data.failureCases)}<hr style={styles.divider} />{renderViewField('즉각 대응 방법', data.immediateResponse)}{renderViewField('사전 예방 방법', data.prevention)}<hr style={styles.divider} /><div style={styles.viewGrid}>{renderViewField('관련 업무', data.relatedTask)}{renderViewField('참고 문서', data.referenceDoc)}</div>{renderViewField('공유 범위', formatYesNo(data.externalShareStatus ?? data.isExternalShareable))}<hr style={styles.divider} /><div style={styles.viewGrid}>{renderViewField('작성자', data.author)}{renderViewField('최종 업데이트일', data.lastUpdatedDate)}</div></>;
             case 'STAKEHOLDER': return <>{renderViewField('이름 / 직함', <strong style={{ fontSize: '18px' }}>{data.personName}</strong>)}{renderViewField('소속 / 관계', data.organization)}{renderViewField('연락처', data.contact)}{renderViewField('담당 역할', data.role)}</>;
             case 'DECISION_HISTORY': return <>{renderViewField('결정 제목', <strong style={{ fontSize: '18px' }}>{data.decisionTitle}</strong>)}{renderViewField('결정 내용', data.decisionContent)}{renderViewField('결정 이유 (Why)', data.decisionReason)}<div style={styles.viewGrid}>{renderViewField('결정 시점', data.decisionDate)}{renderViewField('결정자', data.decisionMaker)}</div><hr style={styles.divider} />{renderViewField('대안 검토 여부', data.hasAlternatives === 'YES' ? '있음' : (data.hasAlternatives === 'NO' ? '없음' : ''))}{renderViewField('검토된 대안', data.reviewedAlternatives)}{renderViewField('변경 영향', data.changeImpact)}<hr style={styles.divider} /><div style={styles.viewGrid}>{renderViewField('관련 업무', data.relatedTask)}{renderViewField('참고 자료', data.referenceUrl, true)}</div><div style={styles.viewGrid}>{renderViewField('공유 범위', formatYesNo(data.externalShareStatus ?? data.isExternalShareable))}{renderViewField('최종 업데이트일', data.lastUpdatedDate)}</div></>;
             case 'FREE_NOTE': return <>{renderViewField('제목', <strong style={{ fontSize: '18px' }}>{data.noteTitle}</strong>)}<div style={styles.viewGrid}>{renderViewField('분류', data.category)}{renderViewField('중요도', data.importance)}</div>{renderViewField('내용', <pre style={styles.preText}>{data.content}</pre>)}<hr style={styles.divider} />{renderViewField('관련 업무', data.relatedTask)}{renderViewField('첨부/참고 링크', data.attachmentLink, true)}<div style={styles.viewGrid}>{renderViewField('작성자', data.author)}{renderViewField('작성일', data.createdDate)}</div></>;
@@ -868,7 +870,10 @@ export default function Handover() {
                             <div style={full}><label style={styles.label}>선행 업무</label><input style={styles.input} value={data.prerequisiteTask || ''} onChange={(e) => handleChange('prerequisiteTask', e)} /></div>
                             {requiredInput('requiredTools', '필요 도구/환경', { rowStyle: full })}
                             {requiredTextarea('procedure', '상세 절차 (Step)')}
-                            {requiredInput('output', '산출물 (Output)', { rowStyle: full })}
+                            <div style={full}>
+                                <label style={styles.label}>산출물 (Output)</label>
+                                <input style={styles.input} placeholder="기존 매뉴얼 참고 또는 해당 없음" value={data.output || ''} onChange={(e) => handleChange('output', e)} />
+                            </div>
                             <div style={full}><label style={styles.label}>검증 기준</label><textarea style={styles.textarea} value={data.verificationCriteria || ''} onChange={(e) => handleChange('verificationCriteria', e)} /></div>
                             <div style={full}><label style={styles.label}>트러블슈팅</label><textarea style={styles.textarea} value={data.troubleshooting || ''} onChange={(e) => handleChange('troubleshooting', e)} /></div>
                         </div>
@@ -878,10 +883,29 @@ export default function Handover() {
                     <div style={styles.sectionGroup}>
                         <div style={styles.sectionTitle}>현재 상태</div>
                         <div style={styles.formGrid}>
-                            {requiredSelect('status', '상태', <><option value="">선택</option><option value="NORMAL">✅ 정상 운영</option><option value="ISSUE">⚠️ 이슈 있음</option><option value="PAUSED">⏸️ 일시 중단</option><option value="HANDOVER">🔄 인계 중</option></>, full)}
+                            {requiredSelect('status', '상태', <><option value="">선택</option><option value="NORMAL">✅ 정상 운영</option><option value="ISSUE">⚠️ 이슈 있음</option><option value="PAUSED">⏸️ 일시 중단</option></>, full)}
                             <div style={styles.formRow}><label style={styles.label}>최근 수행일</label><input type="date" style={styles.input} value={data.lastExecutionDate || ''} onChange={(e) => handleChange('lastExecutionDate', e)} /></div>
                             <div style={styles.formRow}><label style={styles.label}>차기 수행일</label><input type="date" style={styles.input} value={data.nextExecutionDate || ''} onChange={(e) => handleChange('nextExecutionDate', e)} /></div>
                             <div style={full}><label style={styles.label}>미결 사항</label><textarea style={styles.textarea} value={data.pendingIssues || ''} onChange={(e) => handleChange('pendingIssues', e)} /></div>
+                        </div>
+                    </div>
+
+                    {/* Assignee section */}
+                    <div style={styles.sectionGroup}>
+                        <div style={styles.sectionTitle}>담당자 정보</div>
+                        <div style={styles.formGrid}>
+                            <div style={styles.formRow}>
+                                <label style={styles.label}>담당자 이름</label>
+                                <input style={styles.input} value={data.assigneeName || ''} onChange={(e) => handleChange('assigneeName', e)} />
+                            </div>
+                            <div style={styles.formRow}>
+                                <label style={styles.label}>부서</label>
+                                <input style={styles.input} value={data.assigneeDept || ''} onChange={(e) => handleChange('assigneeDept', e)} />
+                            </div>
+                            <div style={full}>
+                                <label style={styles.label}>연락처</label>
+                                <input style={styles.input} placeholder="전화/이메일" value={data.assigneeContact || ''} onChange={(e) => handleChange('assigneeContact', e)} />
+                            </div>
                         </div>
                     </div>
                 </>
@@ -889,32 +913,69 @@ export default function Handover() {
             case 'RELATED_INFO': return (
                 <div style={styles.formGrid}>
                     {requiredInput('relatedDocLinks', '문서 링크', { rowStyle: full })}
-                    {requiredInput('relatedAccount', '사용 계정')}
-                    {requiredInput('relatedContact', '관련 담당자')}
-                    <div style={full}><label style={styles.label}>참고 레퍼런스</label><textarea style={styles.textarea} value={data.referenceLinks || ''} onChange={(e) => handleChange('referenceLinks', e)} /></div>
+                    <div style={styles.formRow}>
+                        <label style={styles.label}>사용 계정 (선택)</label>
+                        <input style={styles.input} value={data.relatedAccount || ''} onChange={(e) => handleChange('relatedAccount', e)} />
+                    </div>
+                    <div style={styles.formRow}>
+                        <label style={styles.label}>관련 담당자 (선택)</label>
+                        <input style={styles.input} value={data.relatedContact || ''} onChange={(e) => handleChange('relatedContact', e)} />
+                    </div>
+                    <div style={full}><label style={styles.label}>참고 레퍼런스</label><textarea style={styles.textarea} placeholder="URL 경로" value={data.referenceLinks || ''} onChange={(e) => handleChange('referenceLinks', e)} /></div>
                 </div>
             );
             case 'ASSET': return (
-                <div style={styles.formGrid}>
-                    {requiredInput('itemName', '품목명', { rowStyle: full })}
-                    {requiredInput('storageLocation', '보관 위치', { rowStyle: full })}
-                    {requiredInput('quantityStatus', '수량 / 상태', { rowStyle: full })}
-                    {requiredSelect('lendingStatus', '대여 여부', <>
-                            <option value="">선택</option>
-                            <option value="NOT_LOANED">대여 아님</option>
-                            <option value="BORROWED">대여 중</option>
-                            <option value="LOANED_OUT">타인에게 대여</option>
-                            <option value="RETURNED">반납 완료</option>
-                        </>, styles.formRow, data.lendingStatus || (data.isReturned ? 'RETURNED' : ''))}
-                    {requiredSelect('ownershipStatus', '관리/소유 구분', <>
-                            <option value="">선택</option>
-                            <option value="TEAM_OWNED">팀 소유</option>
-                            <option value="PERSONAL_OWNED">개인 소유</option>
-                            <option value="RENTED">외부 대여/렌탈</option>
-                            <option value="UNKNOWN">확인 필요</option>
-                        </>)}
-                    <div style={full}><label style={styles.label}>담당자 / 반납처</label><input style={styles.input} value={data.assetManager || ''} onChange={(e) => handleChange('assetManager', e)} /></div>
-                </div>
+                <>
+                    <div style={styles.sectionGroup}>
+                        <div style={styles.sectionTitle}>자산 기본 정보</div>
+                        <div style={styles.formGrid}>
+                            {requiredInput('itemName', '품목명', { rowStyle: full })}
+                            {requiredInput('storageLocation', '보관 위치', { rowStyle: full })}
+                            {requiredInput('quantityStatus', '수량 / 상태', { rowStyle: full })}
+                        </div>
+                    </div>
+
+                    <div style={styles.sectionGroup}>
+                        <div style={styles.sectionTitle}>자산 출처</div>
+                        <div style={styles.formGrid}>
+                            <div style={styles.formRow}>
+                                <label style={styles.label}>자산 출처</label>
+                                <select style={styles.input} value={data.assetSource || ''} onChange={(e) => handleChange('assetSource', e)}>
+                                    <option value="">선택</option>
+                                    <option value="INTERNAL">회사 내부 자산</option>
+                                    <option value="OTHER_DEPT">타 부서 자산</option>
+                                    <option value="NEW_PURCHASE">신규 구매 자산</option>
+                                    <option value="EXTERNAL_RENTAL">외부 대여 자산</option>
+                                </select>
+                            </div>
+                            <div style={full}>
+                                <label style={styles.label}>관련 문서 링크</label>
+                                <input style={styles.input} placeholder="URL 경로" value={data.assetDocLink || ''} onChange={(e) => handleChange('assetDocLink', e)} />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style={styles.sectionGroup}>
+                        <div style={styles.sectionTitle}>대여/소유 정보</div>
+                        <div style={styles.formGrid}>
+                            {requiredSelect('lendingStatus', '대여 여부', <>
+                                    <option value="">선택</option>
+                                    <option value="NOT_LOANED">대여 아님</option>
+                                    <option value="BORROWED">대여 중</option>
+                                    <option value="LOANED_OUT">타인에게 대여</option>
+                                    <option value="RETURNED">반납 완료</option>
+                                </>, styles.formRow, data.lendingStatus || (data.isReturned ? 'RETURNED' : ''))}
+                            {requiredSelect('ownershipStatus', '관리/소유 구분', <>
+                                    <option value="">선택</option>
+                                    <option value="TEAM_OWNED">팀 소유</option>
+                                    <option value="PERSONAL_OWNED">개인 소유</option>
+                                    <option value="RENTED">외부 대여/렌탈</option>
+                                    <option value="UNKNOWN">확인 필요</option>
+                                </>)}
+                            <div style={full}><label style={styles.label}>담당자 / 반납처</label><input style={styles.input} value={data.assetManager || ''} onChange={(e) => handleChange('assetManager', e)} /></div>
+                        </div>
+                    </div>
+                </>
             );
             case 'BUDGET': return (
                 <div style={styles.formGrid}>
@@ -960,26 +1021,53 @@ export default function Handover() {
                 </div>
             );
             case 'RISK': return (
-                <div style={styles.formGrid}>
-                    {requiredInput('riskTitle', '리스크 제목', { rowStyle: full })}
-                    {requiredTextarea('riskDescription', '리스크 설명')}
-                    {requiredSelect('impact', '영향도', <><option value="">선택</option><option value="HIGH">🔴 High</option><option value="MEDIUM">🟡 Medium</option><option value="LOW">🟢 Low</option></>)}
-                    {requiredInput('triggerCondition', '발생 조건')}
-                    {requiredTextarea('immediateResponse', '즉각 대응 방법')}
-                    {requiredTextarea('prevention', '사전 예방 방법')}
-                    <hr style={styles.divider} />
-                    <div style={styles.formRow}><label style={styles.label}>관련 업무 (Task)</label><input style={styles.input} value={data.relatedTask || ''} onChange={(e) => handleChange('relatedTask', e)} /></div>
-                    <div style={styles.formRow}><label style={styles.label}>참고 문서</label><input style={styles.input} value={data.referenceDoc || ''} onChange={(e) => handleChange('referenceDoc', e)} /></div>
-                    {requiredSelect('externalShareStatus', '공유 범위', <>
-                            <option value="">선택</option>
-                            <option value="PRIVATE">공유 안 함</option>
-                            <option value="INTERNAL_ONLY">내부 공유만</option>
-                            <option value="PUBLIC">외부 공유 가능</option>
-                        </>, full, data.externalShareStatus || (data.isExternalShareable ? 'PUBLIC' : ''))}
-                    <hr style={styles.divider} />
-                    <div style={styles.formRow}><label style={styles.label}>작성자</label><input style={styles.input} value={data.author || ''} onChange={(e) => handleChange('author', e)} /></div>
-                    <div style={styles.formRow}><label style={styles.label}>최종 업데이트일</label><input type="date" style={styles.input} value={data.lastUpdatedDate || ''} onChange={(e) => handleChange('lastUpdatedDate', e)} /></div>
-                </div>
+                <>
+                    <div style={styles.sectionGroup}>
+                        <div style={styles.sectionTitle}>리스크 기본 정보</div>
+                        <div style={styles.formGrid}>
+                            {requiredInput('riskTitle', '리스크 제목', { rowStyle: full })}
+                            {requiredTextarea('riskDescription', '리스크 설명')}
+                            {requiredSelect('impact', '영향도', <><option value="">선택</option><option value="HIGH">🔴 High</option><option value="MEDIUM">🟡 Medium</option><option value="LOW">🟢 Low</option></>)}
+                            {requiredInput('triggerCondition', '발생 조건')}
+                        </div>
+                    </div>
+
+                    <div style={styles.sectionGroup}>
+                        <div style={styles.sectionTitle}>원인 및 사례</div>
+                        <div style={styles.formGrid}>
+                            <div style={full}>
+                                <label style={styles.label}>리스크 발생 원인</label>
+                                <textarea style={styles.textarea} placeholder="왜 이 리스크가 발생할 수 있는지" value={data.riskReason || ''} onChange={(e) => handleChange('riskReason', e)} />
+                            </div>
+                            <div style={full}>
+                                <label style={styles.label}>장애/실패 사례</label>
+                                <textarea style={styles.textarea} placeholder="과거 발생했던 사례나 예상 시나리오" value={data.failureCases || ''} onChange={(e) => handleChange('failureCases', e)} />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style={styles.sectionGroup}>
+                        <div style={styles.sectionTitle}>대응 방법</div>
+                        <div style={styles.formGrid}>
+                            {requiredTextarea('immediateResponse', '즉각 대응 방법')}
+                            {requiredTextarea('prevention', '사전 예방 방법')}
+                        </div>
+                    </div>
+
+                    <div style={styles.formGrid}>
+                        <div style={styles.formRow}><label style={styles.label}>관련 업무 (Task)</label><input style={styles.input} value={data.relatedTask || ''} onChange={(e) => handleChange('relatedTask', e)} /></div>
+                        <div style={styles.formRow}><label style={styles.label}>참고 문서</label><input style={styles.input} value={data.referenceDoc || ''} onChange={(e) => handleChange('referenceDoc', e)} /></div>
+                        {requiredSelect('externalShareStatus', '공유 범위', <>
+                                <option value="">선택</option>
+                                <option value="PRIVATE">공유 안 함</option>
+                                <option value="INTERNAL_ONLY">내부 공유만</option>
+                                <option value="PUBLIC">외부 공유 가능</option>
+                            </>, full, data.externalShareStatus || (data.isExternalShareable ? 'PUBLIC' : ''))}
+                        <hr style={styles.divider} />
+                        <div style={styles.formRow}><label style={styles.label}>작성자</label><input style={styles.input} value={data.author || ''} onChange={(e) => handleChange('author', e)} /></div>
+                        <div style={styles.formRow}><label style={styles.label}>최종 업데이트일</label><input type="date" style={styles.input} value={data.lastUpdatedDate || ''} onChange={(e) => handleChange('lastUpdatedDate', e)} /></div>
+                    </div>
+                </>
             );
             case 'STAKEHOLDER': return (
                 <div style={styles.formGrid}>
@@ -1104,8 +1192,13 @@ export default function Handover() {
                                 key={type}
                                 style={{
                                     ...styles.moduleItem,
-                                    opacity: draggedNewType === type ? 0.5 : 1,
-                                    cursor: 'grab'
+                                    ...(draggedNewType === type ? {
+                                        opacity: 0.6,
+                                        transform: 'scale(0.95)',
+                                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                                    } : {}),
+                                    cursor: draggedNewType === type ? 'grabbing' : 'grab',
+                                    transition: 'transform 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease'
                                 }}
                                 draggable
                                 onDragStart={(e) => handleSidebarDragStart(e, type)}
@@ -1168,9 +1261,9 @@ export default function Handover() {
                                         style={{
                                             marginTop: index === 0 ? '0' : '32px',
                                             marginBottom: '16px',
-                                            opacity: isDragging ? 0.5 : 1,
-                                            transform: isDragOver ? 'scale(1.02)' : 'scale(1)',
-                                            transition: 'transform 0.2s, opacity 0.2s'
+                                            ...(isDragging ? styles.draggingModule : {}),
+                                            ...(isDragOver && !isDragging ? styles.dropZoneActive : {}),
+                                            transition: 'transform 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease'
                                         }}
                                         draggable={canEdit}
                                         onDragStart={(e) => handleDragStart(e, index)}
@@ -1191,10 +1284,10 @@ export default function Handover() {
                                         )}
                                         <div style={{
                                             ...styles.headingModule,
-                                            cursor: canEdit ? 'grab' : 'default'
+                                            cursor: canEdit ? (isDragging ? 'grabbing' : 'grab') : 'default'
                                         }}>
                                             {canEdit && (
-                                                <span style={styles.dragHandle}>⋮⋮</span>
+                                                <span style={{...styles.dragHandle, ...(isDragging ? styles.dragHandleActive : {})}}>⋮⋮</span>
                                             )}
                                             <div style={styles.headingContent}>
                                                 {canEdit ? (
@@ -1225,9 +1318,9 @@ export default function Handover() {
                                     key={module.id}
                                     style={{
                                         marginTop: index === 0 ? '0' : '20px',
-                                        opacity: isDragging ? 0.5 : 1,
-                                        transform: isDragOver ? 'scale(1.02)' : 'scale(1)',
-                                        transition: 'transform 0.2s, opacity 0.2s'
+                                        ...(isDragging ? styles.draggingModule : {}),
+                                        ...(isDragOver && !isDragging ? styles.dropZoneActive : {}),
+                                        transition: 'transform 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease'
                                     }}
                                     draggable={canEdit}
                                     onDragStart={(e) => handleDragStart(e, index)}
@@ -1253,11 +1346,11 @@ export default function Handover() {
                                         <div style={{
                                             ...styles.moduleHeader,
                                             background: `linear-gradient(to right, ${moduleColor}08, #ffffff)`,
-                                            cursor: canEdit ? 'grab' : 'default'
+                                            cursor: canEdit ? (isDragging ? 'grabbing' : 'grab') : 'default'
                                         }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                                 {canEdit && (
-                                                    <span style={styles.dragHandle}>⋮⋮</span>
+                                                    <span style={{...styles.dragHandle, ...(isDragging ? styles.dragHandleActive : {})}}>⋮⋮</span>
                                                 )}
                                                 <span style={{
                                                     ...styles.moduleIcon,
@@ -1329,6 +1422,37 @@ export default function Handover() {
                                 </div>
                             );
                         })}
+
+                        {/* Bottom drop zone for adding modules at the end */}
+                        {canEdit && modules.length > 0 && (
+                            <div
+                                style={{
+                                    minHeight: '60px',
+                                    marginTop: '20px',
+                                    borderRadius: '8px',
+                                    border: dragOverIndex === modules.length ? '2px dashed #6366F1' : '2px dashed transparent',
+                                    background: dragOverIndex === modules.length ? 'rgba(99, 102, 241, 0.08)' : 'transparent',
+                                    transition: 'all 0.2s ease',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: dragOverIndex === modules.length ? '#6366F1' : '#9CA3AF',
+                                    fontSize: '14px'
+                                }}
+                                onDragOver={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (dragOverIndex !== modules.length) setDragOverIndex(modules.length);
+                                }}
+                                onDragLeave={handleDragLeave}
+                                onDrop={(e) => {
+                                    e.stopPropagation();
+                                    handleDropOnModule(e, modules.length);
+                                }}
+                            >
+                                {(draggedIndex !== null || draggedNewType) && '여기에 놓으면 맨 아래에 추가됩니다'}
+                            </div>
+                        )}
                     </div>
                 </main>
             </div>
@@ -1652,13 +1776,33 @@ const styles = {
         fontSize: '16px',
         padding: '4px 8px',
         userSelect: 'none',
-        letterSpacing: '2px'
+        letterSpacing: '2px',
+        transition: 'color 0.2s ease'
+    },
+    dragHandleActive: {
+        cursor: 'grabbing'
     },
     dropIndicator: {
         height: '4px',
         background: 'linear-gradient(90deg, #3B82F6, #6366F1)',
         borderRadius: '2px',
         marginBottom: '8px'
+    },
+    draggingModule: {
+        transform: 'scale(1.02)',
+        boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
+        zIndex: 100,
+        opacity: 0.9,
+        transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+    },
+    dropZoneActive: {
+        background: 'rgba(99, 102, 241, 0.08)',
+        border: '2px dashed #6366F1',
+        borderRadius: '8px',
+        transition: 'all 0.2s ease'
+    },
+    moduleTransition: {
+        transition: 'transform 0.2s ease, opacity 0.2s ease'
     },
 
     // Section group styles
