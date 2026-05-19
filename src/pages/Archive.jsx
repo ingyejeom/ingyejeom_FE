@@ -64,16 +64,15 @@ export default function Archive() {
             } catch (error) { console.error(error); }
         };
 
+        // Archive.jsx 내부 fetchMySpaces 함수 수정
         const fetchMySpaces = async () => {
             try {
-                const [adminRes, memberRes] = await Promise.all([
-                    api.get('/userSpace/getAdminSpaces', { params: { deleted: false } }),
-                    api.get('/userSpace/getProfileSpaces', { params: { deleted: false } })
-                ]);
+                const memberRes = await api.get('/userSpace/getProfileSpaces', { params: { deleted: false } });
 
-                const allData = [...(adminRes.data || []), ...(memberRes.data || [])];
+                // memberRes의 데이터만 사용하도록 변경
+                const allData = memberRes.data || [];
 
-                // 변경점: Space.jsx와 동일하게 groupName 추출 및 매핑
+                // Space.jsx와 동일하게 groupName 추출 및 매핑
                 const spaces = allData.map(item => ({
                     id: item.spaceId,
                     name: item.workName || item.groupName || '이름 없음',
