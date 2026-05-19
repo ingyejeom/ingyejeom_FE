@@ -48,14 +48,12 @@ export default function Space() {
         }
     };
 
+    // Space.jsx 수정 후
     const fetchMySpaces = async () => {
         try {
-            const [adminRes, memberRes] = await Promise.all([
-                api.get('/userSpace/getAdminSpaces', { params: { deleted: false } }),
-                api.get('/userSpace/getProfileSpaces', { params: { deleted: false } })
-            ]);
+            const memberRes = await api.get('/userSpace/getProfileSpaces', { params: { deleted: false } });
 
-            const allData = [...(adminRes.data || []), ...(memberRes.data || [])];
+            const allData = memberRes.data || [];
 
             const spaces = allData.map(item => ({
                 id: item.spaceId,
@@ -63,6 +61,7 @@ export default function Space() {
                 groupName: item.groupName || '그룹 없음'
             })).filter(space => space.id != null);
 
+            // 중복 제거 후 상태 업데이트
             const uniqueSpaces = Array.from(new Set(spaces.map(s => s.id))).map(id => spaces.find(s => s.id === id));
             setMySpaces(uniqueSpaces);
         } catch (error) {
