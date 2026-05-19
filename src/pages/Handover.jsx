@@ -481,7 +481,12 @@ export default function Handover() {
             if (id || savedHandoverId) {
                 // Update mode: update existing document
                 const handoverId = savedHandoverId || parseInt(id);
-                await api.put('/handover', { id: handoverId, title, text: payloadText, referencedFileIds });
+                const currentSpaceId = targetSpaceId ? parseInt(currentSpaceId) : metaInfo.spaceId;
+                if (!currentSpaceId) {
+                    alert('스페이스 정보(spaceId)를 찾을 수 없습니다.');
+                    return;
+                }
+                await api.put('/handover', { id: handoverId, title, text: payloadText, spaceId: parseInt(currentSpaceId), referencedFileIds });
                 alert('저장되었습니다.');
                 setIsSaved(true);
                 const policyRes = await api.get('/handover/policy', { params: { handoverId } });
