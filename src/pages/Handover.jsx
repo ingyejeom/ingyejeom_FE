@@ -79,6 +79,7 @@ export default function Handover() {
     const [currentArchiveFolderId, setCurrentArchiveFolderId] = useState(null);
     const [archiveFolderStack, setArchiveFolderStack] = useState([{ id: null, name: 'Home' }]);
     const [selectedArchiveFiles, setSelectedArchiveFiles] = useState([]);
+    const [previewData, setPreviewData] = useState(null);
 
     useEffect(() => {
         const loadData = async () => {
@@ -294,16 +295,50 @@ export default function Handover() {
         }));
     };
 
-    const handleFileClick = async (fileId) => {
+    const handlePreview = async (file) => {
         try {
-            const response = await api.get(`/file/${fileId}?mode=view`, { responseType: 'blob' });
-            const blob = new Blob([response.data], { type: response.headers['content-type'] });
-            const url = window.URL.createObjectURL(blob);
-            window.open(url, '_blank');
+            const fileName = file.fileName || file.name || file.originalFileName || '';
+            const fileId = file.fileId || file.id;
+            const previewFile = { id: fileId, name: fileName, originalFileName: fileName };
+            const res = await api.get(`/file/${previewFile.id}?mode=view`, { responseType: 'blob' });
+            const contentType = res.headers['content-type'] || '';
+            const fileBlob = new Blob([res.data], { type: contentType });
+            const filename = previewFile.name || previewFile.originalFileName || '';
+            const ext = filename.split('.').pop().toLowerCase();
+
+            if (contentType.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) {
+                setPreviewData({ type: 'image', url: window.URL.createObjectURL(fileBlob), name: filename, fileId: previewFile.id });
+            } else if (contentType === 'application/pdf' || ext === 'pdf') {
+                setPreviewData({
+                    type: 'pdf',
+                    url: window.URL.createObjectURL(fileBlob),
+                    name: filename,
+                    fileId: previewFile.id,
+                    blob: fileBlob
+                });
+            } else if (contentType.startsWith('text/') || ['txt', 'md', 'json', 'xml', 'java', 'js', 'html'].includes(ext)) {
+                const text = await fileBlob.text();
+                setPreviewData({ type: 'text', content: text, name: filename });
+            } else {
+                alert('미리보기를 지원하지 않는 형식입니다.');
+            }
         } catch (error) {
             console.error('File preview error:', error);
-            alert('파일을 열 수 없습니다.');
+            alert('미리보기를 불러오지 못했습니다.');
         }
+    };
+
+    const handlePdfDownload = () => {
+        if (!previewData?.blob) return;
+
+        const url = window.URL.createObjectURL(previewData.blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', previewData.name || 'document.pdf');
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
     };
 
     // Drag and drop handlers
@@ -1374,7 +1409,7 @@ export default function Handover() {
                                                             <div key={file.fileId} style={styles.attachedFileItem}>
                                                                 <div
                                                                     style={styles.fileClickArea}
-                                                                    onClick={() => handleFileClick(file.fileId)}
+                                                                    onClick={() => handlePreview(file)}
                                                                     title="클릭하여 미리보기"
                                                                 >
                                                                     <span style={styles.fileIcon}>{getFileIcon(file.fileType)}</span>
@@ -1440,6 +1475,49 @@ export default function Handover() {
                     </div>
                 </main>
             </div>
+
+            {/* File Preview Modal */}
+            {previewData && (
+                <div style={styles.modalOverlay} onClick={() => setPreviewData(null)}>
+                    <div style={styles.previewContainer} onClick={(e) => e.stopPropagation()}>
+                        <div style={styles.previewHeader}>
+                            <div style={{ flex: 1, overflow: 'hidden' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span className="material-icons" style={{ color: '#4F46E5', fontSize: '22px' }}>
+                                        {previewData.type === 'pdf' ? 'picture_as_pdf' : previewData.type === 'image' ? 'image' : 'description'}
+                                    </span>
+                                    <h3 style={styles.previewTitle} title={previewData.name}>
+                                        {previewData.name}
+                                    </h3>
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                {previewData.type === 'pdf' && (
+                                    <button style={styles.previewDownloadBtn} onClick={handlePdfDownload} title="다운로드">
+                                        <span className="material-icons" style={{ fontSize: '18px' }}>download</span> 다운로드
+                                    </button>
+                                )}
+                                <button style={styles.previewCloseBtn} onClick={() => setPreviewData(null)} title="닫기">
+                                    <span className="material-icons" style={{ fontSize: '20px' }}>close</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div style={styles.previewBody}>
+                            {previewData.type === 'image' && (
+                                <img src={previewData.url} alt="preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '4px' }} />
+                            )}
+                            {previewData.type === 'pdf' && (
+                                <iframe src={`${previewData.url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`} style={{ width: '100%', height: '100%', border: 'none', backgroundColor: '#F8FAFC' }} title="pdf-viewer" />
+                            )}
+                            {previewData.type === 'text' && (
+                                <div style={styles.previewTextBox}>{previewData.content}</div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* File Selector Modal */}
             {isFileSelectorOpen && (
@@ -1807,6 +1885,13 @@ const styles = {
     viewValue: { fontSize: '15px', color: '#111827', lineHeight: '1.5' },
     viewCard: { backgroundColor: '#f9fafb', borderRadius: '8px', padding: '16px', marginBottom: '16px', border: '1px solid #e5e7eb' },
     preText: { whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0, padding: '16px', background: '#f9fafb', borderRadius: '8px', fontSize: '14px', lineHeight: '1.7', border: '1px solid #e5e7eb' },
+    previewContainer: { backgroundColor: '#ffffff', borderRadius: '16px', width: '90%', maxWidth: '1000px', height: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden' },
+    previewHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', backgroundColor: '#ffffff', borderBottom: '1px solid #E2E8F0' },
+    previewTitle: { fontSize: '18px', fontWeight: '700', color: '#1E293B', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+    previewBody: { flex: 1, overflow: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC', position: 'relative' },
+    previewTextBox: { backgroundColor: '#ffffff', padding: '40px', width: '100%', maxWidth: '800px', minHeight: '100%', whiteSpace: 'pre-wrap', fontFamily: '"Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif', fontSize: '15px', color: '#334155', lineHeight: '1.7', boxSizing: 'border-box', borderLeft: '1px solid #E2E8F0', borderRight: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' },
+    previewDownloadBtn: { display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', backgroundColor: '#EEF2FF', color: '#4F46E5', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px', transition: 'background-color 0.2s' },
+    previewCloseBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', backgroundColor: '#F1F5F9', color: '#64748B', border: 'none', borderRadius: '50%', cursor: 'pointer', transition: 'background-color 0.2s' },
 
     // File Selector Modal styles
     modalOverlay: {
