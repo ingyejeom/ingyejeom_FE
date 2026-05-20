@@ -53,6 +53,7 @@ export default function Space() {
         try {
             const memberRes = await api.get('/userSpace/getProfileSpaces', { params: { deleted: false } });
 
+            // memberRes 데이터만 사용합니다.
             const allData = memberRes.data || [];
 
             const spaces = allData.map(item => ({
@@ -277,9 +278,19 @@ export default function Space() {
                         <span className="material-icons" style={{ color: '#94A3B8' }}>expand_more</span>
                     </div>
                     {isDropdownOpen && (
+                        // 수정 전. 이거 다시 살려야 하면 살릴 것.
                         <div style={styles.dropdownMenu}>
                             {mySpaces.map(space => (
-                                <div key={space.id} style={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); navigate(`/space/${space.id}`); }}>
+                                <div
+                                    key={space.id}
+                                    style={styles.dropdownItem}
+                                    onClick={() => {
+                                        setIsDropdownOpen(false);
+                                        // 수정 전
+                                        // navigate(`/space/${space.id}`);
+                                        // 수정 후
+                                        window.location.href = `/space/${space.id}`;
+                                    }}>
                                     {space.groupName} - {space.name}
                                 </div>
                             ))}
