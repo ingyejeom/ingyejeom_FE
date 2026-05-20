@@ -3,6 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import api from '../api/api';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+import Header from '../components/Header';
 
 const MODULE_TYPES = {
     'HEADING': { icon: '📌', label: '섹션 제목' },
@@ -472,7 +473,7 @@ export default function Handover() {
         const payloadText = JSON.stringify({ modules });
 
         const referencedFileIds = [...new Set(
-            modules.flatMap(module => 
+            modules.flatMap(module =>
                 (module.attachedFiles || []).map(file => file.fileId)
             )
         )];
@@ -849,8 +850,8 @@ export default function Handover() {
                     {requiredInput('accountId', 'ID / 계정명')}
                     {requiredInput('password', '비밀번호')}
                     {requiredSelect('permissionLevel', '권한 등급', <>
-                            <option value="">선택</option><option value="ADMIN">Admin (최고관리자)</option><option value="MANAGER">Editor (편집자)</option><option value="NORMAL">Normal (일반)</option><option value="VIEWER">Viewer (뷰어)</option>
-                        </>, full)}
+                        <option value="">선택</option><option value="ADMIN">Admin (최고관리자)</option><option value="MANAGER">Editor (편집자)</option><option value="NORMAL">Normal (일반)</option><option value="VIEWER">Viewer (뷰어)</option>
+                    </>, full)}
                     <div style={full}><label style={styles.label}>이용 규칙</label><textarea style={styles.textarea} value={data.usageRule || ''} onChange={(e) => handleChange('usageRule', e)} /></div>
                 </div>
             );
@@ -964,19 +965,19 @@ export default function Handover() {
                         <div style={styles.sectionTitle}>대여/소유 정보</div>
                         <div style={styles.formGrid}>
                             {requiredSelect('lendingStatus', '대여 여부', <>
-                                    <option value="">선택</option>
-                                    <option value="NOT_LOANED">대여 아님</option>
-                                    <option value="BORROWED">대여 중</option>
-                                    <option value="LOANED_OUT">타인에게 대여</option>
-                                    <option value="RETURNED">반납 완료</option>
-                                </>, styles.formRow, data.lendingStatus || (data.isReturned ? 'RETURNED' : ''))}
+                                <option value="">선택</option>
+                                <option value="NOT_LOANED">대여 아님</option>
+                                <option value="BORROWED">대여 중</option>
+                                <option value="LOANED_OUT">타인에게 대여</option>
+                                <option value="RETURNED">반납 완료</option>
+                            </>, styles.formRow, data.lendingStatus || (data.isReturned ? 'RETURNED' : ''))}
                             {requiredSelect('ownershipStatus', '관리/소유 구분', <>
-                                    <option value="">선택</option>
-                                    <option value="TEAM_OWNED">팀 소유</option>
-                                    <option value="PERSONAL_OWNED">개인 소유</option>
-                                    <option value="RENTED">외부 대여/렌탈</option>
-                                    <option value="UNKNOWN">확인 필요</option>
-                                </>)}
+                                <option value="">선택</option>
+                                <option value="TEAM_OWNED">팀 소유</option>
+                                <option value="PERSONAL_OWNED">개인 소유</option>
+                                <option value="RENTED">외부 대여/렌탈</option>
+                                <option value="UNKNOWN">확인 필요</option>
+                            </>)}
                             <div style={full}><label style={styles.label}>담당자 / 반납처</label><input style={styles.input} value={data.assetManager || ''} onChange={(e) => handleChange('assetManager', e)} /></div>
                         </div>
                     </div>
@@ -999,20 +1000,20 @@ export default function Handover() {
                     {requiredInput('paymentSchedule', '결제일 / 주기')}
                     {requiredInput('amount', '금액 (원)', { type: 'number' })}
                     {requiredSelect('paymentMethod', '결제 수단', <>
-                            <option value="">선택</option>
-                            <option value="CARD">카드</option>
-                            <option value="TRANSFER">계좌이체</option>
-                            <option value="CASH">현금</option>
-                            <option value="AUTO_PAYMENT">자동 결제</option>
-                            <option value="OTHER">기타</option>
-                        </>)}
+                        <option value="">선택</option>
+                        <option value="CARD">카드</option>
+                        <option value="TRANSFER">계좌이체</option>
+                        <option value="CASH">현금</option>
+                        <option value="AUTO_PAYMENT">자동 결제</option>
+                        <option value="OTHER">기타</option>
+                    </>)}
                     {requiredSelect('expenseStatus', '승인/정산 상태', <>
-                            <option value="">선택</option>
-                            <option value="PLANNED">예정</option>
-                            <option value="PAID">결제 완료</option>
-                            <option value="REIMBURSED">정산 완료</option>
-                            <option value="NEEDS_REVIEW">확인 필요</option>
-                        </>)}
+                        <option value="">선택</option>
+                        <option value="PLANNED">예정</option>
+                        <option value="PAID">결제 완료</option>
+                        <option value="REIMBURSED">정산 완료</option>
+                        <option value="NEEDS_REVIEW">확인 필요</option>
+                    </>)}
                     <div style={full}><label style={styles.label}>증빙 자료 링크</label><input style={styles.input} value={data.receiptLink || ''} onChange={(e) => handleChange('receiptLink', e)} /></div>
                     <div style={full}><label style={styles.label}>관련 장부 (링크)</label><input style={styles.input} value={data.ledgerLink || ''} onChange={(e) => handleChange('ledgerLink', e)} /></div>
                 </div>
@@ -1063,11 +1064,11 @@ export default function Handover() {
                         <div style={styles.formRow}><label style={styles.label}>관련 업무 (Task)</label><input style={styles.input} value={data.relatedTask || ''} onChange={(e) => handleChange('relatedTask', e)} /></div>
                         <div style={styles.formRow}><label style={styles.label}>참고 문서</label><input style={styles.input} value={data.referenceDoc || ''} onChange={(e) => handleChange('referenceDoc', e)} /></div>
                         {requiredSelect('externalShareStatus', '공유 범위', <>
-                                <option value="">선택</option>
-                                <option value="PRIVATE">공유 안 함</option>
-                                <option value="INTERNAL_ONLY">내부 공유만</option>
-                                <option value="PUBLIC">외부 공유 가능</option>
-                            </>, full, data.externalShareStatus || (data.isExternalShareable ? 'PUBLIC' : ''))}
+                            <option value="">선택</option>
+                            <option value="PRIVATE">공유 안 함</option>
+                            <option value="INTERNAL_ONLY">내부 공유만</option>
+                            <option value="PUBLIC">외부 공유 가능</option>
+                        </>, full, data.externalShareStatus || (data.isExternalShareable ? 'PUBLIC' : ''))}
                         <hr style={styles.divider} />
                         <div style={styles.formRow}><label style={styles.label}>작성자</label><input style={styles.input} value={data.author || ''} onChange={(e) => handleChange('author', e)} /></div>
                         <div style={styles.formRow}><label style={styles.label}>최종 업데이트일</label><input type="date" style={styles.input} value={data.lastUpdatedDate || ''} onChange={(e) => handleChange('lastUpdatedDate', e)} /></div>
@@ -1097,11 +1098,11 @@ export default function Handover() {
                     <div style={styles.formRow}><label style={styles.label}>관련 업무 (Task)</label><input style={styles.input} value={data.relatedTask || ''} onChange={(e) => handleChange('relatedTask', e)} /></div>
                     <div style={styles.formRow}><label style={styles.label}>참고 자료</label><input style={styles.input} value={data.referenceUrl || ''} onChange={(e) => handleChange('referenceUrl', e)} /></div>
                     {requiredSelect('externalShareStatus', '공유 범위', <>
-                            <option value="">선택</option>
-                            <option value="PRIVATE">공유 안 함</option>
-                            <option value="INTERNAL_ONLY">내부 공유만</option>
-                            <option value="PUBLIC">외부 공유 가능</option>
-                        </>, full, data.externalShareStatus || (data.isExternalShareable ? 'PUBLIC' : ''))}
+                        <option value="">선택</option>
+                        <option value="PRIVATE">공유 안 함</option>
+                        <option value="INTERNAL_ONLY">내부 공유만</option>
+                        <option value="PUBLIC">외부 공유 가능</option>
+                    </>, full, data.externalShareStatus || (data.isExternalShareable ? 'PUBLIC' : ''))}
                     <div style={full}><label style={styles.label}>최종 업데이트일</label><input type="date" style={styles.input} value={data.lastUpdatedDate || ''} onChange={(e) => handleChange('lastUpdatedDate', e)} /></div>
                 </div>
             );
@@ -1131,62 +1132,40 @@ export default function Handover() {
         );
     }
 
+    const headerRightElement = (
+        <div style={styles.headerButtons}>
+            {canEdit ? (
+                <>
+                    <button style={styles.btnPrimary} onClick={handleSave}>저장하기</button>
+                    <button
+                        style={canGeneratePdf ? styles.btnPdf : styles.btnPdfDisabled}
+                        onClick={handleGeneratePdf}
+                        disabled={!canGeneratePdf || isGeneratingPdf}
+                        title={handoverPolicy?.lockReason || ''}
+                    >
+                        {isGeneratingPdf ? '생성 중...' : 'PDF 생성'}
+                    </button>
+                </>
+            ) : (
+                <button
+                    style={canGeneratePdf ? styles.btnPdf : styles.btnPdfDisabled}
+                    onClick={handleGeneratePdf}
+                    disabled={!canGeneratePdf || isGeneratingPdf}
+                    title={handoverPolicy?.lockReason || ''}
+                >
+                    {isGeneratingPdf ? '생성 중...' : 'PDF 생성'}
+                </button>
+            )}
+        </div>
+    );
+
     return (
         <div style={styles.pageBackground}>
-            <header style={styles.header}>
-                <nav style={styles.breadcrumb}>
-                    <span style={{ cursor: 'pointer', color: '#3B82F6' }} onClick={() => navigate('/')}>내 스페이스</span>
-                    <span>&gt;</span>
-                    <span
-                        style={{ cursor: 'pointer', color: '#3B82F6' }}
-                        onClick={() => {
-                            if (metaInfo.groupId) {
-                                navigate(`/group/manage/${metaInfo.groupId}`);
-                            }
-                        }}
-                    >
-                        {metaInfo.groupName}
-                    </span>
-                    <span>&gt;</span>
-                    <span
-                        style={{ cursor: 'pointer', color: '#3B82F6' }}
-                        onClick={() => {
-                            const spaceId = targetSpaceId || metaInfo.spaceId;
-                            if (spaceId) {
-                                navigate(`/space/${spaceId}/archive`);
-                            } else {
-                                navigate(-1);
-                            }
-                        }}
-                    >
-                        {metaInfo.workName} (자료실)
-                    </span>
-                </nav>
-                <div style={styles.headerButtons}>
-                    {canEdit ? (
-                        <>
-                            <button style={styles.btnPrimary} onClick={handleSave}>저장하기</button>
-                            <button
-                                style={canGeneratePdf ? styles.btnPdf : styles.btnPdfDisabled}
-                                onClick={handleGeneratePdf}
-                                disabled={!canGeneratePdf || isGeneratingPdf}
-                                title={handoverPolicy?.lockReason || ''}
-                            >
-                                {isGeneratingPdf ? '생성 중...' : 'PDF 생성'}
-                            </button>
-                        </>
-                    ) : (
-                        <button
-                            style={canGeneratePdf ? styles.btnPdf : styles.btnPdfDisabled}
-                            onClick={handleGeneratePdf}
-                            disabled={!canGeneratePdf || isGeneratingPdf}
-                            title={handoverPolicy?.lockReason || ''}
-                        >
-                            {isGeneratingPdf ? '생성 중...' : 'PDF 생성'}
-                        </button>
-                    )}
-                </div>
-            </header>
+            <Header
+                leftType="back"
+                title={isCreateMode ? '인수인계서 생성하기' : '인수인계서 확인/수정'}
+                rightElement={headerRightElement}
+            />
 
             <div style={styles.mainContainer}>
                 {canEdit && (
@@ -1292,7 +1271,7 @@ export default function Handover() {
                                             cursor: canEdit ? (isDragging ? 'grabbing' : 'grab') : 'default'
                                         }}>
                                             {canEdit && (
-                                                <span style={{...styles.dragHandle, ...(isDragging ? styles.dragHandleActive : {})}}>⋮⋮</span>
+                                                <span style={{ ...styles.dragHandle, ...(isDragging ? styles.dragHandleActive : {}) }}>⋮⋮</span>
                                             )}
                                             <div style={styles.headingContent}>
                                                 {canEdit ? (
@@ -1355,7 +1334,7 @@ export default function Handover() {
                                         }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                                 {canEdit && (
-                                                    <span style={{...styles.dragHandle, ...(isDragging ? styles.dragHandleActive : {})}}>⋮⋮</span>
+                                                    <span style={{ ...styles.dragHandle, ...(isDragging ? styles.dragHandleActive : {}) }}>⋮⋮</span>
                                                 )}
                                                 <span style={{
                                                     ...styles.moduleIcon,
@@ -1573,14 +1552,12 @@ export default function Handover() {
 
 const styles = {
     pageBackground: { backgroundColor: '#F3F4F6', minHeight: '100vh' },
-    header: { background: 'white', padding: '15px 30px', borderBottom: '1px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000 },
-    breadcrumb: { display: 'flex', alignItems: 'center', gap: '8px', color: '#666', fontSize: '14px', fontWeight: '500' },
     headerButtons: { display: 'flex', gap: '10px' },
     btnPrimary: { background: '#3B82F6', color: 'white', padding: '8px 20px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' },
     btnPdf: { background: '#10B981', color: 'white', padding: '8px 20px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' },
     btnPdfDisabled: { background: '#9CA3AF', color: 'white', padding: '8px 20px', border: 'none', borderRadius: '6px', cursor: 'not-allowed', fontWeight: '600', opacity: 0.6 },
-    mainContainer: { display: 'flex', marginTop: '60px', minHeight: 'calc(100vh - 60px)' },
-    sidebar: { width: '250px', background: 'white', borderRight: '1px solid #e0e0e0', padding: '20px', position: 'fixed', top: '60px', left: 0, bottom: 0, overflowY: 'auto' },
+    mainContainer: { display: 'flex', minHeight: 'calc(100vh - 70px)' },
+    sidebar: { width: '250px', background: 'white', borderRight: '1px solid #e0e0e0', padding: '20px', position: 'fixed', top: '70px', left: 0, bottom: 0, overflowY: 'auto' },
     sidebarTitle: { fontSize: '14px', fontWeight: '700', marginBottom: '15px', paddingBottom: '10px', borderBottom: '1px solid #e0e0e0' },
     moduleItem: { padding: '12px 15px', background: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' },
     content: { flex: 1, padding: '30px', maxWidth: '900px' },
