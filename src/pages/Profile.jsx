@@ -81,13 +81,13 @@ export default function Profile() {
         setIsAdminFetching(true);
 
         try {
-            const res = await api.get('/group/getProfileGroups', { 
-                params: { 
-                    cursor: isInitial ? null : adminCursor, 
-                    perPage: PER_PAGE, 
-                    orderWay: 'desc', 
-                    deleted: false 
-                } 
+            const res = await api.get('/group/getProfileGroups', {
+                params: {
+                    cursor: isInitial ? null : adminCursor,
+                    perPage: PER_PAGE,
+                    orderWay: 'desc',
+                    deleted: false
+                }
             });
 
             const newData = res.data || [];
@@ -128,13 +128,13 @@ export default function Profile() {
         setIsMemberFetching(true);
 
         try {
-            const res = await api.get('/userSpace/getProfileSpaces', { 
-                params: { 
-                    cursor: isInitial ? null : memberCursor, 
-                    perPage: PER_PAGE, 
-                    orderWay: 'desc', 
-                    deleted: false 
-                } 
+            const res = await api.get('/userSpace/getProfileSpaces', {
+                params: {
+                    cursor: isInitial ? null : memberCursor,
+                    perPage: PER_PAGE,
+                    orderWay: 'desc',
+                    deleted: false
+                }
             });
 
             const newData = res.data || [];
@@ -313,10 +313,10 @@ export default function Profile() {
                         {/* (상근) [수정] 이름 부분을 텍스트 박스로 변환 */}
                         <div style={styles.nameSection}>
                             {isEditingProfile ? (
-                                <input 
+                                <input
                                     style={styles.nameInput}
                                     value={editProfileForm.name}
-                                    onChange={(e) => setEditProfileForm({...editProfileForm, name: e.target.value})}
+                                    onChange={(e) => setEditProfileForm({ ...editProfileForm, name: e.target.value })}
                                     autoFocus // 수정하기 누르면 이름에 바로 커서가 가도록 설정
                                 />
                             ) : (
@@ -341,7 +341,7 @@ export default function Profile() {
                                 <div style={styles.infoValueBox}>
                                     <span className="material-icons" style={styles.infoIcon}>phone_iphone</span>
                                     {isEditingProfile ? (
-                                        <input 
+                                        <input
                                             style={styles.inputField}
                                             value={editProfileForm.phone}
                                             onChange={handlePhoneChange}
@@ -362,11 +362,11 @@ export default function Profile() {
                                 <div style={styles.infoValueBox}>
                                     <span className="material-icons" style={styles.infoIcon}>cake</span>
                                     {isEditingProfile ? (
-                                        <input 
+                                        <input
                                             type="date"
                                             style={styles.inputField}
                                             value={editProfileForm.birth}
-                                            onChange={(e) => setEditProfileForm({...editProfileForm, birth: e.target.value})}
+                                            onChange={(e) => setEditProfileForm({ ...editProfileForm, birth: e.target.value })}
                                         />
                                     ) : (
                                         <span style={userInfo.birth ? styles.infoText : styles.placeholderText}>
@@ -407,7 +407,7 @@ export default function Profile() {
                             ))
                         )}
                         {/* 🌟 [추가] 로딩 표시 */}
-                        {isAdminFetching && <div style={{textAlign: 'center', padding: '10px', fontSize: '12px', color: '#94A3B8'}}>목록을 더 불러오는 중...</div>}
+                        {isAdminFetching && <div style={{ textAlign: 'center', padding: '10px', fontSize: '12px', color: '#94A3B8' }}>목록을 더 불러오는 중...</div>}
                     </div>
                     <button style={styles.joinNewGroupBtn} onClick={() => navigate('/group/create')}>+ 새로운 그룹 생성하기</button>
                 </section>
@@ -428,6 +428,8 @@ export default function Profile() {
                                 <div key={`member-${space.id}-${idx}`} style={styles.groupCard}>
                                     <div style={styles.groupHeader}>
                                         <span style={styles.badgeMember}>{space.roleLabel}</span>
+                                        {/* 🌟 [수정] 관리자 이름을 오른쪽 위(Header 영역)로 이동 */}
+                                        <span style={styles.adminNameText}>관리자: {space.adminName}</span>
                                     </div>
                                     <div style={styles.groupBody}>
                                         <div>
@@ -443,11 +445,10 @@ export default function Profile() {
                                                 </button>
                                             </div>
                                             <p style={styles.groupDesc}>{space.name}</p>
-                                            <p style={styles.adminNameText}>관리자: {space.adminName}</p>
                                         </div>
                                         {/* 🌟 [수정] 인계 중 상태 버튼 차단 로직 유지 */}
                                         {space.ongoingApprovalId ? (
-                                            <button style={{...styles.handoverBtn, backgroundColor: '#E2E8F0', color: '#94A3B8', borderColor: '#CBD5E1', cursor: 'not-allowed'}} disabled>인계 중</button>
+                                            <button style={{ ...styles.handoverBtn, backgroundColor: '#E2E8F0', color: '#94A3B8', borderColor: '#CBD5E1', cursor: 'not-allowed' }} disabled>인계 중</button>
                                         ) : (
                                             <button style={styles.handoverBtn} onClick={() => handleOpenHandoverModal(space.spaceId)}>인계하기</button>
                                         )}
@@ -456,7 +457,7 @@ export default function Profile() {
                             ))
                         )}
                         {/* 🌟 [추가] 로딩 표시 */}
-                        {isMemberFetching && <div style={{textAlign: 'center', padding: '10px', fontSize: '12px', color: '#94A3B8'}}>목록을 더 불러오는 중...</div>}
+                        {isMemberFetching && <div style={{ textAlign: 'center', padding: '10px', fontSize: '12px', color: '#94A3B8' }}>목록을 더 불러오는 중...</div>}
                     </div>
                 </section>
             </main>
@@ -498,7 +499,7 @@ export default function Profile() {
     );
 }
 
-// styles 객체는 기존과 동일하게 유지
+// styles 객체
 const styles = {
     pageBackground: { backgroundColor: '#F3F4F6', minHeight: '100vh', display: 'flex', flexDirection: 'column' },
     logoutBtn: { padding: '8px 16px', backgroundColor: '#FFFFFF', color: '#EF4444', border: '1px solid #EF4444', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' },
@@ -511,24 +512,24 @@ const styles = {
     profileCard: { display: 'flex', flexDirection: 'column', alignItems: 'center' },
     avatarWrapper: { width: '100px', height: '100px', borderRadius: '50%', border: '4px solid #FFFFFF', outline: '2px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4F6', marginBottom: '16px' },
     nameSection: { textAlign: 'center', marginBottom: '24px', width: '100%' },
-    userName: { 
-        fontSize: '20px', 
-        fontWeight: '800', 
-        color: '#0F172A', 
-        margin: '0 0 4px 0', 
-        lineHeight: '1.2', 
-        display: 'block' 
+    userName: {
+        fontSize: '20px',
+        fontWeight: '800',
+        color: '#0F172A',
+        margin: '0 0 4px 0',
+        lineHeight: '1.2',
+        display: 'block'
     },
-    nameInput: { 
-        fontSize: '20px', 
-        fontWeight: '800', 
-        color: '#0F172A', 
-        margin: '0 0 4px 0', 
-        textAlign: 'center', 
-        border: 'none', 
-        backgroundColor: 'transparent', 
-        outline: 'none', 
-        width: '100%', 
+    nameInput: {
+        fontSize: '20px',
+        fontWeight: '800',
+        color: '#0F172A',
+        margin: '0 0 4px 0',
+        textAlign: 'center',
+        border: 'none',
+        backgroundColor: 'transparent',
+        outline: 'none',
+        width: '100%',
         fontFamily: 'inherit',
         padding: '0',      // 브라우저 기본 패딩 제거
         lineHeight: '1.2', // h3와 동일하게 설정하여 위치 고정
@@ -540,33 +541,33 @@ const styles = {
     infoItem: { display: 'flex', flexDirection: 'column', gap: '8px' },
     infoLabel: { fontSize: '12px', fontWeight: '700', color: '#6B7280' },
     // (상근) [수정] 메일 박스와 동일한 디자인의 통합 박스
-    infoValueBox: { 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: '10px', 
-        padding: '10px 14px', 
-        backgroundColor: '#F8FAFC', 
-        border: '1px solid #E2E8F0', 
-        borderRadius: '8px' 
+    infoValueBox: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        padding: '10px 14px',
+        backgroundColor: '#F8FAFC',
+        border: '1px solid #E2E8F0',
+        borderRadius: '8px'
     },
     infoIcon: { color: '#9CA3AF', fontSize: '18px' },
     infoText: { fontSize: '14px', color: '#374151', fontWeight: '500', lineHeight: '20px', display: 'inline-block' },
     placeholderText: { fontSize: '14px', color: '#CBD5E1' },
-    inputField: { 
-        border: 'none', 
-        backgroundColor: 'transparent', 
-        width: '100%', 
-        outline: 'none', 
-        fontSize: '14px', 
-        color: '#1E293B', 
-        fontWeight: '500', 
+    inputField: {
+        border: 'none',
+        backgroundColor: 'transparent',
+        width: '100%',
+        outline: 'none',
+        fontSize: '14px',
+        color: '#1E293B',
+        fontWeight: '500',
         fontFamily: 'inherit',
         padding: '0', // 여백을 0으로 만들어 기존 span 태그의 위치와 완벽히 일치시킴
         margin: '0',
         lineHeight: '20px',
         height: '20px',
         display: 'block'
-    }, 
+    },
     emptyText: { color: '#6B7280', textAlign: 'center', padding: '40px', fontSize: '14px' },
     scrollArea: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '8px' },
     groupCard: { border: '1px solid #E5E7EB', borderRadius: '8px', padding: '20px', backgroundColor: '#F9FAFB', flexShrink: 0 },
@@ -577,7 +578,8 @@ const styles = {
     groupBody: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
     groupName: { fontSize: '16px', fontWeight: '700', color: '#111827', marginBottom: '4px' },
     groupDesc: { fontSize: '13px', color: '#6B7280' },
-    adminNameText: { fontSize: '11px', color: '#9CA3AF', marginTop: '6px', fontWeight: '500' },
+    // 🌟 [수정] marginTop 제거 (우측 상단 정렬 시 불필요)
+    adminNameText: { fontSize: '11px', color: '#9CA3AF', fontWeight: '500' },
     manageBtn: { backgroundColor: '#EFF6FF', color: '#2563EB', border: '1px solid #DBEAFE', padding: '8px 16px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', fontWeight: '600' },
     handoverBtn: { backgroundColor: '#F0FDF4', color: '#16A34A', border: '1px solid #DCFCE7', padding: '8px 16px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', fontWeight: '600' },
     joinNewGroupBtn: { marginTop: '24px', width: '100%', padding: '16px', backgroundColor: 'rgba(239, 246, 255, 0.5)', border: '1px dashed #3B82F6', borderRadius: '8px', color: '#3B82F6', fontSize: '14px', cursor: 'pointer', fontWeight: '600', textAlign: 'center', flexShrink: 0 },
